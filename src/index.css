@@ -1,0 +1,22 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    font-family: 'Zen Maru Gothic', 'M PLUS Rounded 1c', -apple-system, BlinkMacSystemFont,
+      'Hiragino Maru Gothic ProN', 'Yu Gothic', sans-serif;
+    background-color: #FFFBF7;
+    color: #44403c;
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+/* スクロールバー非表示ユーティリティ */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
