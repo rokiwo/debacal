@@ -1,0 +1,25 @@
+{
+  "name": "デバカレ (DebaCal) - 開発・機能検証用カレンダー",
+  "short_name": "デバカレ",
+  "description": "新機能のアップデート・機能修正の動作検証用カレンダー",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#FFFBF7",
+  "theme_color": "#FF8FAB",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "./icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "./icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
