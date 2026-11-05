@@ -1146,4 +1146,167 @@ ${
   );
 }
 
+/**
+ * 🎙️ AI音声整形結果
+ */
+export interface AiFormattedSpeechResult {
+  rawText: string;               // 話した生の音声テキスト
+  cleanSentence: string;         // フィラー言葉を除去し綺麗に整形された文章
+  title: string;                 // カレンダー予定タイトル
+  date: string;                  // "YYYY-MM-DD"
+  dateLabel: string;             // 「明日」「12月1日(火)」
+  timeLabel: string;             // 「終日」「19:00〜21:00」
+  overtimeText?: string;         // 「残業 +35分」
+  holidayWorkText?: string;      // 「休日出勤 +4時間」
+  supportBadgeLabels: string[];  // 抽出されたサポートバッジ一覧
+  partnerLineMessage: string;    // パートナーに今すぐLINEで送れるメッセージ案
+  parsed: ParsedVoiceSchedule;
+}
+
+/**
+ * 🧠 音声認識された言葉をリアルタイムに解析し、フィラー除去＆美しい日本語の予定文章・LINEメッセージを同時生成するAIエンジン
+ */
+export function aiFormatSpokenText(
+  rawText: string,
+  baseDate: string,
+  activePartner: PartnerId,
+  partnerAName = 'ゆうと',
+  partnerBName = 'さや'
+): AiFormattedSpeechResult {
+  if (!rawText.trim()) {
+    return {
+      rawText: '',
+      cleanSentence: '上のマイクをタップして話してください🐾',
+      title: '',
+      date: baseDate,
+      dateLabel: '日付未定',
+      timeLabel: '終日',
+      supportBadgeLabels: [],
+      partnerLineMessage: '',
+      parsed: {
+        date: baseDate,
+        title: '',
+        isAllDay: true,
+        categoryId: 'shared',
+        supportBadges: [],
+      },
+    };
+  }
+
+  // 1. フィラー言葉（言い淀み・言い直し）の高度なクレンジング
+  let cleaned = rawText
+    .replace(/(?:^|\s)(?:えーっと|えっと|あー|あのー|あのね|うーん|うーんと|ええと|えー|そのー|んーと|んー)(?:\s|$)/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  // 「〜じゃなくて…」の言い直し補正（例: "15日じゃなくて16日" -> "16日"）
+  cleaned = cleaned.replace(/(?:[0-9１-９一二三四五六七八九十]+日|明日|今日|明後日)\s*(?:じゃなくて|ではなくて|ではなく|じゃなく)\s*/g, '');
+
+  const parsed = parseSpokenScheduleText(cleaned, baseDate, 'shared');
+
+  // 日付の人間向けラベル生成
+  const [y, m, d] = parsed.date.split('-').map(Number);
+  const targetDt = new Date(y, m - 1, d);
+  const weekdays = ['日', '月', '火', '水', '木', '金', '土'];
+  const wStr = weekdays[targetDt.getDay()];
+
+  const today = new Date();
+  const diffDays = Math.round((targetDt.getTime() - new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime()) / 86400000);
+  let dateLabel = `${m}月${d}日(${wStr})`;
+  if (diffDays === 0) dateLabel = `今日 ${m}/${d}(${wStr})`;
+  else if (diffDays === 1) dateLabel = `明日 ${m}/${d}(${wStr})`;
+  else if (diffDays === 2) dateLabel = `明後日 ${m}/${d}(${wStr})`;
+
+  // 時間ラベル
+  let timeLabel = '終日';
+  if (!parsed.isAllDay && parsed.startTime) {
+    timeLabel = parsed.endTime ? `${parsed.startTime}〜${parsed.endTime}` : `${parsed.startTime}〜`;
+  }
+
+  // サポートバッジの人間向けラベル
+  const badgeMap: Record<string, string> = {
+    dinner_no: '夜ご飯不要 🍚❌',
+    dinner_yes: '夜ご飯必要 🍚⭕',
+    pickup_needed: '送り迎え必要 🚗',
+    late_return: '遅め帰宅 🌙',
+    lunchbox_needed: 'お弁当必要 🍱',
+    drinking_party: '飲み会 🍺',
+    bath_not_needed: 'お風呂不要 🛁❌',
+  };
+  const supportBadgeLabels = parsed.supportBadges.map((id) => badgeMap[id] || id);
+
+  // 残業・休出テキスト
+  let overtimeText: string | undefined;
+  if (parsed.overtimeMinutes) {
+    overtimeText = `残業 +${parsed.overtimeMinutes}分`;
+    if (parsed.overtimeStartTime && parsed.overtimeEndTime) {
+      overtimeText += ` (${parsed.overtimeStartTime}〜${parsed.overtimeEndTime})`;
+    }
+  } else if (parsed.overtimeHours) {
+    overtimeText = `残業 +${Math.round(parsed.overtimeHours * 60)}分`;
+  }
+
+  let holidayWorkText: string | undefined;
+  if (parsed.holidayWorkMinutes) {
+    holidayWorkText = `休日出勤 +${parsed.holidayWorkMinutes}分`;
+  } else if (parsed.holidayWorkHours) {
+    holidayWorkText = `休日出勤 +${parsed.holidayWorkHours}時間`;
+  }
+
+  // きれいな日本語文章の合成
+  const sentenceParts: string[] = [dateLabel];
+  if (!parsed.isAllDay && timeLabel !== '終日') {
+    sentenceParts.push(timeLabel);
+  }
+  if (parsed.title) {
+    sentenceParts.push(parsed.title);
+  }
+  if (overtimeText) {
+    sentenceParts.push(overtimeText);
+  }
+  if (holidayWorkText) {
+    sentenceParts.push(holidayWorkText);
+  }
+  if (supportBadgeLabels.length > 0) {
+    sentenceParts.push(`(${supportBadgeLabels.join('・')})`);
+  }
+  const cleanSentence = sentenceParts.join(' ');
+
+  // 💬 パートナーへのLINE連絡文の自動生成
+  const myName = activePartner === 'partnerA' ? partnerAName : partnerBName;
+  const myAvatar = activePartner === 'partnerA' ? '🐻' : '🐰';
+  const lineDetails: string[] = [];
+  if (parsed.title && parsed.title !== '残業') {
+    lineDetails.push(`【予定】${parsed.title}`);
+  }
+  if (timeLabel !== '終日') {
+    lineDetails.push(`【時間】${timeLabel}`);
+  }
+  if (overtimeText) {
+    lineDetails.push(`【残業】+${parsed.overtimeMinutes ?? Math.round((parsed.overtimeHours || 0) * 60)}分`);
+  }
+  if (holidayWorkText) {
+    lineDetails.push(`【休日出勤】${holidayWorkText}`);
+  }
+  if (supportBadgeLabels.length > 0) {
+    lineDetails.push(`【伝言】${supportBadgeLabels.join('、')}`);
+  }
+
+  const partnerLineMessage = `${myAvatar} ${myName}より予定連絡💌\n📅 ${dateLabel}\n` + lineDetails.join('\n');
+
+  return {
+    rawText,
+    cleanSentence,
+    title: parsed.title || (overtimeText ? '残業' : '新しい予定'),
+    date: parsed.date,
+    dateLabel,
+    timeLabel,
+    overtimeText,
+    holidayWorkText,
+    supportBadgeLabels,
+    partnerLineMessage,
+    parsed,
+  };
+}
+
 
