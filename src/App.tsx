@@ -785,6 +785,15 @@ export const App: React.FC = () => {
           deletedAt: nowIso,
         };
       } else {
+        const isHolWorkStamp = Boolean(
+          stamp.id === 'shift_hol_work' ||
+          stamp.label.includes('休出') ||
+          stamp.label.includes('休日出勤')
+        );
+        const todayDate = new Date();
+        const todayStr = `${todayDate.getFullYear()}-${String(todayDate.getMonth() + 1).padStart(2, '0')}-${String(todayDate.getDate()).padStart(2, '0')}`;
+        const isFutureDate = dateStr > todayStr;
+
         nextShift = {
           ...(existing && !existing.deletedAt ? existing : {}),
           id: shiftId,
@@ -793,6 +802,14 @@ export const App: React.FC = () => {
           stampId: stamp.id,
           startTime: stamp.startTime,
           endTime: stamp.endTime,
+          isHolidayWork: isHolWorkStamp ? true : (existing?.isHolidayWork || false),
+          holidayWorkMinutes: isHolWorkStamp ? (existing?.holidayWorkMinutes || 240) : existing?.holidayWorkMinutes,
+          holidayWorkHours: isHolWorkStamp ? (existing?.holidayWorkHours || 4) : existing?.holidayWorkHours,
+          // 未来日（登録日より後）は固定で仮予定（未確定）にする
+          isTentativeHolidayWork: isHolWorkStamp && isFutureDate ? true : existing?.isTentativeHolidayWork,
+          holidayWorkStatus: isHolWorkStamp && isFutureDate ? 'tentative' : existing?.holidayWorkStatus,
+          isTentativeOvertime: isFutureDate && ((existing?.overtimeMinutes || 0) > 0 || (existing?.overtimeHours || 0) > 0) ? true : existing?.isTentativeOvertime,
+          overtimeStatus: isFutureDate && ((existing?.overtimeMinutes || 0) > 0 || (existing?.overtimeHours || 0) > 0) ? 'tentative' : existing?.overtimeStatus,
           createdBy: activePartner,
           createdAt: existing?.createdAt || nowIso,
           updatedAt: nowIso,
@@ -880,6 +897,30 @@ export const App: React.FC = () => {
         updatedAt: nowIso,
         deletedAt: null,
       };
+
+      // 💡 ユーザー要望：登録日（今日）より後の未来日の残業・休日出勤は、固定で仮残業（未確定）にする！
+      const todayDate = new Date();
+      const todayStr = `${todayDate.getFullYear()}-${String(todayDate.getMonth() + 1).padStart(2, '0')}-${String(todayDate.getDate()).padStart(2, '0')}`;
+      const isFutureDate = dateStr > todayStr;
+
+      if (isFutureDate) {
+        if (
+          (nextShift.overtimeMinutes && nextShift.overtimeMinutes > 0) ||
+          (nextShift.overtimeHours && nextShift.overtimeHours > 0)
+        ) {
+          nextShift.isTentativeOvertime = true;
+          nextShift.overtimeStatus = 'tentative';
+        }
+        if (
+          nextShift.isHolidayWork ||
+          (nextShift.holidayWorkMinutes && nextShift.holidayWorkMinutes > 0) ||
+          (nextShift.holidayWorkHours && nextShift.holidayWorkHours > 0) ||
+          nextShift.stampId === 'shift_hol_work'
+        ) {
+          nextShift.isTentativeHolidayWork = true;
+          nextShift.holidayWorkStatus = 'tentative';
+        }
+      }
 
       commitStore({
         ...store,
