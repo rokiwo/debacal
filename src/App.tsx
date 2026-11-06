@@ -1457,6 +1457,8 @@ export const App: React.FC = () => {
 
     for (const ev of Object.values(store.events || {})) {
       if (!ev || ev.deletedAt) continue;
+      // 🔒 操作者限定プライベート予定：他人の秘密予定は新着カウントにも含めない
+      if (ev.privateFor && ev.privateFor !== activePartner) continue;
       if (ev.createdBy === otherId && (Date.parse(ev.updatedAt || ev.createdAt) || 0) > mySeenMs) {
         count++;
       }
