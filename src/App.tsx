@@ -18,6 +18,7 @@ import {
   formatMinutesToJa,
   getShiftHolidayWorkMinutes,
   getShiftOvertimeMinutes,
+  isShiftExtraTentative,
   LEGACY_DEFAULT_STAMP_IDS,
 } from './utils/presets';
 import { hashPasscode } from './utils/crypto';
@@ -55,6 +56,8 @@ import { TaskManagerModal } from './components/TaskManagerModal';
 import { WelcomeImageModal } from './components/WelcomeImageModal';
 import { SharedKeywordModal } from './components/SharedKeywordModal';
 import { PartnerEventsModal } from './components/PartnerEventsModal';
+import { OvertimeConfirmModal } from './components/OvertimeConfirmModal';
+import { OvertimePendingBanner } from './components/OvertimePendingBanner';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
 // 日付文字列 "YYYY-MM-DD" に deltaDays 日を加算した "YYYY-MM-DD" を返す
@@ -99,8 +102,12 @@ export const App: React.FC = () => {
   // シフト連続入力ドロワー状態 ＆ 連続翌日移動ON/OFF
   const [stampDrawerOpen, setStampDrawerOpen] = useState<boolean>(false);
   const [autoAdvance, setAutoAdvance] = useState<boolean>(true);
-  const [stampDrawerTab, setStampDrawerTab] = useState<StampDrawerTab>('partnerA_shift');
-  const [selectedStampId, setSelectedStampId] = useState<string | null>('shift_a_day');
+  const [stampDrawerTab, setStampDrawerTab] = useState<StampDrawerTab>(() =>
+    getActivePartnerId() === 'partnerB' ? 'partnerB_shift' : 'partnerA_shift'
+  );
+  const [selectedStampId, setSelectedStampId] = useState<string | null>(() =>
+    getActivePartnerId() === 'partnerB' ? 'shift_b_day' : 'shift_a_day'
+  );
 
   // 各種モーダル開閉状態
   const [dayDetailOpen, setDayDetailOpen] = useState<boolean>(false);
@@ -118,6 +125,7 @@ export const App: React.FC = () => {
   const [welcomeModalOpen, setWelcomeModalOpen] = useState<boolean>(false);
   const [welcomePreviewConfig, setWelcomePreviewConfig] = useState<WelcomeImageConfig | null>(null);
   const [partnerEventsModalOpen, setPartnerEventsModalOpen] = useState<boolean>(false);
+  const [confirmShiftTarget, setConfirmShiftTarget] = useState<ShiftEntry | null>(null);
 
   // クラウド同期状態（特定の合言葉が入力された場合のみ共有同期が有効になる）
   const [savedSharedKeyword, setSavedSharedKeywordState] = useState<string | null>(() => getSavedSharedKeyword());
@@ -1411,13 +1419,12 @@ export const App: React.FC = () => {
     );
   }
 
-  const currentDrawerPartner: PartnerId =
-    stampDrawerTab === 'partnerB_shift' ? 'partnerB' : 'partnerA';
+  const currentDrawerPartner: PartnerId = activePartner;
   const currentShiftOnSelectedDate = store.shifts[
-    `${selectedDate}_${currentDrawerPartner}`
+    `${selectedDate}_${activePartner}`
   ]?.deletedAt
     ? undefined
-    : store.shifts[`${selectedDate}_${currentDrawerPartner}`];
+    : store.shifts[`${selectedDate}_${activePartner}`];
 
   return (
     <div className="min-h-screen bg-[#FFFBF7] text-stone-700 flex flex-col">
