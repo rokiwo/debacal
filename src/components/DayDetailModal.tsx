@@ -32,7 +32,6 @@ import {
   getJapaneseHoliday,
   getShiftHolidayWorkMinutes,
   getShiftOvertimeMinutes,
-  isShiftExtraTentative,
   resolveCategoryInfo,
   SUPPORT_BADGE_PRESETS,
 } from '../utils/presets';
@@ -96,6 +95,7 @@ export const DayDetailModal: React.FC<DayDetailModalProps> = ({
   onOpenVoiceModal,
   onOpenCategoryManager,
   onOpenShiftInput,
+  onUpdateShiftDetails,
 }) => {
   const [showEventForm, setShowEventForm] = useState(initialOpenEventForm);
   const [formTabMode, setFormTabMode] = useState<'event' | 'task'>('event');
@@ -995,19 +995,36 @@ export const DayDetailModal: React.FC<DayDetailModalProps> = ({
                       🌙 夜バ
                     </span>
                   )}
-                  {activePartner === 'partnerA' && (getShiftHolidayWorkMinutes(shiftA) > 0 || getShiftOvertimeMinutes(shiftA) > 0) && (() => {
-                    const isTentative = isShiftExtraTentative(shiftA);
+                  {(getShiftHolidayWorkMinutes(shiftA) > 0 || getShiftOvertimeMinutes(shiftA) > 0) && (() => {
+                    const hw = getShiftHolidayWorkMinutes(shiftA);
+                    const ot = getShiftOvertimeMinutes(shiftA);
+                    const isTentative = Boolean((ot > 0 && shiftA?.isTentativeOvertime) || (hw > 0 && shiftA?.isTentativeHolidayWork));
                     return (
-                      <span className={`px-1.5 py-0.5 rounded font-black text-[10px] shadow-2xs ${
-                        isTentative
-                          ? 'bg-amber-400 text-stone-900 border border-amber-500'
-                          : 'bg-rose-500 text-white'
-                      }`}>
-                        {isTentative && '📌仮 '}
-                        {getShiftHolidayWorkMinutes(shiftA) > 0
-                          ? `💼 休出${formatMinutesShort(getShiftHolidayWorkMinutes(shiftA))}`
-                          : `⏱️ 残+${formatMinutesShort(getShiftOvertimeMinutes(shiftA))}`}
-                      </span>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className={`px-1.5 py-0.5 rounded font-black text-[10px] shadow-2xs ${
+                          isTentative
+                            ? 'bg-amber-500 text-white border border-dashed border-amber-300'
+                            : 'bg-rose-500 text-white'
+                        }`}>
+                          {isTentative
+                            ? (hw > 0 ? `💼 仮休出${formatMinutesShort(hw)}` : `⏱️ 仮残+${formatMinutesShort(ot)}`)
+                            : (hw > 0 ? `💼 休出${formatMinutesShort(hw)}` : `⏱️ 残+${formatMinutesShort(ot)}`)}
+                        </span>
+                        {isTentative && onUpdateShiftDetails && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onUpdateShiftDetails(dateStr, 'partnerA', {
+                                isTentativeHolidayWork: false,
+                                isTentativeOvertime: false,
+                              });
+                            }}
+                            className="px-2 py-0.5 rounded-lg bg-linear-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 text-white font-extrabold text-[10px] shadow-2xs active:scale-95 transition-all"
+                          >
+                            ✨ 実残業を確定
+                          </button>
+                        )}
+                      </div>
                     );
                   })()}
                 </div>
@@ -1044,19 +1061,36 @@ export const DayDetailModal: React.FC<DayDetailModalProps> = ({
                       🌙 夜バ
                     </span>
                   )}
-                  {activePartner === 'partnerB' && (getShiftHolidayWorkMinutes(shiftB) > 0 || getShiftOvertimeMinutes(shiftB) > 0) && (() => {
-                    const isTentative = isShiftExtraTentative(shiftB);
+                  {(getShiftHolidayWorkMinutes(shiftB) > 0 || getShiftOvertimeMinutes(shiftB) > 0) && (() => {
+                    const hw = getShiftHolidayWorkMinutes(shiftB);
+                    const ot = getShiftOvertimeMinutes(shiftB);
+                    const isTentative = Boolean((ot > 0 && shiftB?.isTentativeOvertime) || (hw > 0 && shiftB?.isTentativeHolidayWork));
                     return (
-                      <span className={`px-1.5 py-0.5 rounded font-black text-[10px] shadow-2xs ${
-                        isTentative
-                          ? 'bg-amber-400 text-stone-900 border border-amber-500'
-                          : 'bg-rose-500 text-white'
-                      }`}>
-                        {isTentative && '📌仮 '}
-                        {getShiftHolidayWorkMinutes(shiftB) > 0
-                          ? `💼 休出${formatMinutesShort(getShiftHolidayWorkMinutes(shiftB))}`
-                          : `⏱️ 残+${formatMinutesShort(getShiftOvertimeMinutes(shiftB))}`}
-                      </span>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className={`px-1.5 py-0.5 rounded font-black text-[10px] shadow-2xs ${
+                          isTentative
+                            ? 'bg-amber-500 text-white border border-dashed border-amber-300'
+                            : 'bg-rose-500 text-white'
+                        }`}>
+                          {isTentative
+                            ? (hw > 0 ? `💼 仮休出${formatMinutesShort(hw)}` : `⏱️ 仮残+${formatMinutesShort(ot)}`)
+                            : (hw > 0 ? `💼 休出${formatMinutesShort(hw)}` : `⏱️ 残+${formatMinutesShort(ot)}`)}
+                        </span>
+                        {isTentative && onUpdateShiftDetails && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onUpdateShiftDetails(dateStr, 'partnerB', {
+                                isTentativeHolidayWork: false,
+                                isTentativeOvertime: false,
+                              });
+                            }}
+                            className="px-2 py-0.5 rounded-lg bg-linear-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 text-white font-extrabold text-[10px] shadow-2xs active:scale-95 transition-all"
+                          >
+                            ✨ 実残業を確定
+                          </button>
+                        )}
+                      </div>
                     );
                   })()}
                 </div>
