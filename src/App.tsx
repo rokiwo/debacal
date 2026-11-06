@@ -18,7 +18,6 @@ import {
   formatMinutesToJa,
   getShiftHolidayWorkMinutes,
   getShiftOvertimeMinutes,
-  isShiftExtraTentative,
   LEGACY_DEFAULT_STAMP_IDS,
 } from './utils/presets';
 import { hashPasscode } from './utils/crypto';
@@ -56,8 +55,7 @@ import { TaskManagerModal } from './components/TaskManagerModal';
 import { WelcomeImageModal } from './components/WelcomeImageModal';
 import { SharedKeywordModal } from './components/SharedKeywordModal';
 import { PartnerEventsModal } from './components/PartnerEventsModal';
-import { OvertimeConfirmModal } from './components/OvertimeConfirmModal';
-import { OvertimePendingBanner } from './components/OvertimePendingBanner';
+import { ConfirmOvertimeCard } from './components/ConfirmOvertimeCard';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
 // 日付文字列 "YYYY-MM-DD" に deltaDays 日を加算した "YYYY-MM-DD" を返す
@@ -125,7 +123,6 @@ export const App: React.FC = () => {
   const [welcomeModalOpen, setWelcomeModalOpen] = useState<boolean>(false);
   const [welcomePreviewConfig, setWelcomePreviewConfig] = useState<WelcomeImageConfig | null>(null);
   const [partnerEventsModalOpen, setPartnerEventsModalOpen] = useState<boolean>(false);
-  const [confirmShiftTarget, setConfirmShiftTarget] = useState<ShiftEntry | null>(null);
 
   // クラウド同期状態（特定の合言葉が入力された場合のみ共有同期が有効になる）
   const [savedSharedKeyword, setSavedSharedKeywordState] = useState<string | null>(() => getSavedSharedKeyword());
@@ -927,6 +924,64 @@ export const App: React.FC = () => {
     [activePartner, commitStore, showToast, store]
   );
 
+  // その日の終わりにアプリから実残業時間を確定させるコールバック
+  const handleConfirmShiftActual = useCallback(
+    (dateStr: string, partnerId: PartnerId, actualMinutes: number, isHolidayWork: boolean) => {
+      const shiftId = `${dateStr}_${partnerId}`;
+      const existing = store.shifts[shiftId];
+      if (!existing) return;
+
+      const nowIso = new Date().toISOString();
+      const patch: Partial<ShiftEntry> = isHolidayWork
+        ? {
+            isHolidayWork: true,
+            isTentativeHolidayWork: false,
+            isTentativeOvertime: false,
+            holidayWorkMinutes: actualMinutes,
+            holidayWorkHours: Math.round((actualMinutes / 60) * 10) / 10,
+            overtimeMinutes: 0,
+            overtimeHours: 0,
+            updatedAt: nowIso,
+          }
+        : {
+            isHolidayWork: false,
+            isTentativeHolidayWork: false,
+            isTentativeOvertime: false,
+            overtimeMinutes: actualMinutes,
+            overtimeHours: Math.round((actualMinutes / 60) * 10) / 10,
+            holidayWorkMinutes: 0,
+            holidayWorkHours: 0,
+            updatedAt: nowIso,
+          };
+
+      handleUpdateShiftDetails(dateStr, partnerId, patch);
+      showToast(
+        actualMinutes > 0
+          ? `🎉 お疲れさまでした！実残業 ${formatMinutesToJa(actualMinutes)} で確定しました！`
+          : `🎉 お疲れさまでした！残業なし(0分)で確定しました！`
+      );
+    },
+    [handleUpdateShiftDetails, showToast, store.shifts]
+  );
+
+  // 仮残業のキャンセル（残業なし・0分で完了）
+  const handleCancelTentativeShift = useCallback(
+    (dateStr: string, partnerId: PartnerId) => {
+      const nowIso = new Date().toISOString();
+      handleUpdateShiftDetails(dateStr, partnerId, {
+        isTentativeHolidayWork: false,
+        isTentativeOvertime: false,
+        holidayWorkMinutes: 0,
+        holidayWorkHours: 0,
+        overtimeMinutes: 0,
+        overtimeHours: 0,
+        updatedAt: nowIso,
+      });
+      showToast('🎉 お疲れさまでした！残業なしで完了しました🐾');
+    },
+    [handleUpdateShiftDetails, showToast]
+  );
+
   // AI画像読取やナスカレ連携からの一括シフト＆予定登録
   const handleBulkApplyShiftsAndEvents = useCallback(
     (newShifts: ShiftEntry[], newEvents: ScheduleEvent[], summaryMsg: string) => {
@@ -1230,10 +1285,10 @@ export const App: React.FC = () => {
     const calcFor = (pid: PartnerId) => {
       let overtimeMinutes = 0;
       let holidayWorkMinutes = 0;
-      let partTimeCount = 0;
       let tentativeExtraMinutes = 0;
-      let tentativeCount = 0;
+      let partTimeCount = 0;
       const entries: ShiftEntry[] = [];
+      const tentativeEntries: ShiftEntry[] = [];
 
       for (const s of Object.values(store.shifts)) {
         if (s.deletedAt || s.partnerId !== pid || !s.date.startsWith(prefix)) continue;
@@ -1248,37 +1303,46 @@ export const App: React.FC = () => {
           }
         }
 
-        if (isShiftExtraTentative(s)) {
-          tentativeCount += 1;
-          tentativeExtraMinutes += otMin + hwMin;
+        const isTentative = Boolean(
+          (otMin > 0 && s.isTentativeOvertime) ||
+          (hwMin > 0 && s.isTentativeHolidayWork)
+        );
+
+        if (isTentative) {
+          // 仮・見込み残業/休出
+          tentativeExtraMinutes += (otMin + hwMin);
+          tentativeEntries.push(s);
+        } else {
+          // 確定済み残業/休出
+          if (otMin > 0) overtimeMinutes += otMin;
+          if (hwMin > 0) holidayWorkMinutes += hwMin;
+          if (otMin > 0 || hwMin > 0 || s.isHolidayWork || hasSub) {
+            entries.push(s);
+          }
         }
 
-        if (otMin > 0) overtimeMinutes += otMin;
-        if (hwMin > 0) holidayWorkMinutes += hwMin;
         if (hasSub) partTimeCount += 1;
-
-        if (otMin > 0 || hwMin > 0 || s.isHolidayWork || hasSub) {
-          entries.push(s);
-        }
       }
 
       entries.sort((a, b) => a.date.localeCompare(b.date));
+      tentativeEntries.sort((a, b) => a.date.localeCompare(b.date));
       const totalExtraMinutes = overtimeMinutes + holidayWorkMinutes;
 
       return {
         overtimeMinutes,
         holidayWorkMinutes,
         totalExtraMinutes,
+        tentativeExtraMinutes,
         overtimeHours: Math.round((overtimeMinutes / 60) * 10) / 10,
         holidayWorkHours: Math.round((holidayWorkMinutes / 60) * 10) / 10,
         totalExtraHours: Math.round((totalExtraMinutes / 60) * 10) / 10,
         overtimeFormatted: formatMinutesToJa(overtimeMinutes),
         holidayWorkFormatted: formatMinutesToJa(holidayWorkMinutes),
         totalExtraFormatted: formatMinutesToJa(totalExtraMinutes),
+        tentativeExtraFormatted: formatMinutesToJa(tentativeExtraMinutes),
         partTimeCount,
-        tentativeExtraMinutes,
-        tentativeCount,
         entries,
+        tentativeEntries,
       };
     };
 
@@ -1534,12 +1598,13 @@ export const App: React.FC = () => {
             onOpenPartnerEvents={openPartnerEventsModal}
           />
 
-          {/* ⏱️ 当日・過去の未確定残業・休出がある時の確認バナー（1タップで実績確定） */}
-          <OvertimePendingBanner
-            shifts={store.shifts}
+          {/* 🌟 その日の終わりに実残業時間をそっちから確認してワンタップ確定させるお疲れさまカード */}
+          <ConfirmOvertimeCard
             activePartner={activePartner}
             metadata={store.metadata}
-            onOpenConfirmModal={(shift) => setConfirmShiftTarget(shift)}
+            shifts={store.shifts}
+            onConfirmShift={handleConfirmShiftActual}
+            onCancelTentative={handleCancelTentativeShift}
           />
 
           {/* 月間カレンダーグリッド（シングルタップ移動・ダブルタップ予定一覧・右下＋予定追加） */}
@@ -1899,20 +1964,6 @@ export const App: React.FC = () => {
           onMarkSeenNow={handleMarkSeenNow}
           onSelectDate={(dateStr) => {
             openDayDetailModal(dateStr, false);
-          }}
-        />
-      )}
-
-      {/* ⏱️ 残業・休日出勤の実績確定モーダル（終業後の確認） */}
-      {confirmShiftTarget && (
-        <OvertimeConfirmModal
-          shift={confirmShiftTarget}
-          metadata={store.metadata}
-          activePartner={activePartner}
-          onClose={() => setConfirmShiftTarget(null)}
-          onConfirm={(dateStr, partnerId, patch) => {
-            handleUpdateShiftDetails(dateStr, partnerId, patch);
-            showToast('お疲れ様でした☕️ 実績を保存しました！');
           }}
         />
       )}
