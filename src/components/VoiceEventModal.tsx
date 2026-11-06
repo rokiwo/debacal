@@ -132,6 +132,7 @@ export const VoiceEventModal: React.FC<VoiceEventModalProps> = ({
     const todayStr = new Date().toISOString().split('T')[0];
     return selectedDate > todayStr; // 未来日なら初期値で仮予定
   });
+  const [isPrivate, setIsPrivate] = useState<boolean>(false); // 🔒 じぶん限定フラグ
 
   // 詳細設定アコーディオン
   const [showDetailFields, setShowDetailFields] = useState(false);
@@ -233,6 +234,9 @@ export const VoiceEventModal: React.FC<VoiceEventModalProps> = ({
         if (result.date > todayStr) {
           setIsTentative(true);
         }
+      }
+      if (result.parsed.isPrivate !== undefined) {
+        setIsPrivate(result.parsed.isPrivate);
       }
     }
   };
@@ -491,6 +495,7 @@ export const VoiceEventModal: React.FC<VoiceEventModalProps> = ({
         endTime: isAllDay ? undefined : endTime,
         supportBadges: supportBadges.length > 0 ? supportBadges : undefined,
         isTentative,
+        privateFor: isPrivate ? activePartner : undefined,
         createdBy: activePartner,
         createdAt: nowIso,
         updatedAt: nowIso,
@@ -498,8 +503,8 @@ export const VoiceEventModal: React.FC<VoiceEventModalProps> = ({
       onSaveEvent(ev);
     }
 
-    // もしLINE送信も希望ならLINEを即座に開く
-    if (shouldOpenLine && aiResult.partnerLineMessage) {
+    // もしLINE送信も希望ならLINEを即座に開く（じぶん限定秘密予定の場合は相手に送信しない）
+    if (shouldOpenLine && !isPrivate && aiResult.partnerLineMessage) {
       const lineUrl = `https://line.me/R/share?text=${encodeURIComponent(aiResult.partnerLineMessage)}`;
       window.open(lineUrl, '_blank');
     }
@@ -1032,6 +1037,36 @@ export const VoiceEventModal: React.FC<VoiceEventModalProps> = ({
               </div>
             );
           })()}
+
+          {/* 🔒 じぶん限定・シークレット予定トグル */}
+          <div className={`p-2.5 rounded-xl border flex items-center justify-between gap-2 transition-all ${
+            isPrivate
+              ? 'bg-purple-100/90 border-purple-400'
+              : 'bg-purple-50/60 border-purple-200'
+          }`}>
+            <div className="text-xs">
+              <div className="font-black text-purple-900 flex items-center gap-1">
+                <span>🔒 {currentPartner.name}限定（相手の画面には非表示）</span>
+                {isPrivate && (
+                  <span className="px-1.5 py-0.2 rounded-full bg-purple-600 text-white text-[9px] font-bold">
+                    シークレット
+                  </span>
+                )}
+              </div>
+              <div className="text-[10px] text-purple-700 font-bold">
+                ONにすると、相手のスマホやカレンダーには一切表示されません
+              </div>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer shrink-0">
+              <input
+                type="checkbox"
+                checked={isPrivate}
+                onChange={(e) => setIsPrivate(e.target.checked)}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-stone-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+            </label>
+          </div>
 
           {/* 4. アクションボタン（カレンダー登録 ＆ LINEにも同時送信） */}
           <div className="space-y-2 pt-1">
