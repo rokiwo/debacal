@@ -128,9 +128,9 @@ export const VoiceEventModal: React.FC<VoiceEventModalProps> = ({
   const [holidayWorkMinutes, setHolidayWorkMinutes] = useState<number | null>(null);
   const [holidayWorkHours, setHolidayWorkHours] = useState<number | null>(null);
   const [applyToShift, setApplyToShift] = useState<boolean>(true);
-  const [isTentativeOvertime, setIsTentativeOvertime] = useState<boolean>(() => {
+  const [isTentative, setIsTentative] = useState<boolean>(() => {
     const todayStr = new Date().toISOString().split('T')[0];
-    return selectedDate > todayStr; // 未来日ならデフォルト仮予定
+    return selectedDate > todayStr; // 未来日なら初期値で仮予定
   });
 
   // 詳細設定アコーディオン
@@ -223,16 +223,16 @@ export const VoiceEventModal: React.FC<VoiceEventModalProps> = ({
         setHolidayWorkMinutes(null);
         setHolidayWorkHours(null);
       }
-      if (/かも|予定|見込み|仮/.test(fullText)) {
-        setIsTentativeOvertime(true);
-      } else if (result.date) {
-        const todayStr = new Date().toISOString().split('T')[0];
-        if (result.date > todayStr) {
-          setIsTentativeOvertime(true);
-        }
-      }
       if (result.parsed.targetPartner) {
         setTargetPartner(result.parsed.targetPartner);
+      }
+      if (result.parsed.isTentative) {
+        setIsTentative(true);
+      } else {
+        const todayStr = new Date().toISOString().split('T')[0];
+        if (result.date > todayStr) {
+          setIsTentative(true);
+        }
       }
     }
   };
@@ -450,7 +450,8 @@ export const VoiceEventModal: React.FC<VoiceEventModalProps> = ({
           isHolidayWork: true,
           holidayWorkMinutes: hwM,
           holidayWorkHours: Math.round((hwM / 60) * 10) / 10,
-          holidayWorkStatus: isTentativeOvertime ? 'tentative' : 'confirmed',
+          isTentativeHolidayWork: isTentative,
+          isTentativeOvertime: false,
           overtimeMinutes: 0,
           overtimeHours: 0,
           overtimeStartTime: undefined,
@@ -462,9 +463,10 @@ export const VoiceEventModal: React.FC<VoiceEventModalProps> = ({
           isHolidayWork: false,
           holidayWorkMinutes: 0,
           holidayWorkHours: 0,
+          isTentativeHolidayWork: false,
+          isTentativeOvertime: isTentative,
           overtimeMinutes: otM,
           overtimeHours: Math.round((otM / 60) * 10) / 10,
-          overtimeStatus: isTentativeOvertime ? 'tentative' : 'confirmed',
           overtimeStartTime: overtimeStartTime ?? undefined,
           overtimeEndTime: overtimeEndTime ?? undefined,
         });
@@ -483,6 +485,7 @@ export const VoiceEventModal: React.FC<VoiceEventModalProps> = ({
         startTime: isAllDay ? undefined : startTime,
         endTime: isAllDay ? undefined : endTime,
         supportBadges: supportBadges.length > 0 ? supportBadges : undefined,
+        isTentative,
         createdBy: activePartner,
         createdAt: nowIso,
         updatedAt: nowIso,
@@ -992,51 +995,31 @@ export const VoiceEventModal: React.FC<VoiceEventModalProps> = ({
             )}
           </div>
 
-          {/* 残業・休日出勤がある場合の「仮予定 / 実績確定」切り替えスイッチ */}
-          {(overtimeMinutes !== null || holidayWorkMinutes !== null) && (
-            <div className="p-2.5 rounded-2xl bg-[#FFFBF7] border border-[#FFE28A] space-y-1.5 animate-pop">
-              <div className="flex items-center justify-between text-[11px] font-extrabold text-stone-700">
-                <span className="flex items-center gap-1">
-                  <Timer className="w-3.5 h-3.5 text-[#D49600]" />
-                  <span>{holidayWorkMinutes ? '休日出勤' : '残業'}のステータス:</span>
-                </span>
-                <span className={`px-2 py-0.5 rounded-full font-black text-[10px] ${
-                  isTentativeOvertime
-                    ? 'bg-amber-100 text-amber-800 border border-amber-300'
-                    : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                }`}>
-                  {isTentativeOvertime ? '📌 仮の予定（終業後に確定）' : '✅ 実績確定'}
-                </span>
+          {/* 仮・見込み予定（その日の終わりに確認）トグル */}
+          {(overtimeMinutes !== null || holidayWorkMinutes !== null || isTentative) && (
+            <div className="p-2.5 rounded-xl bg-[#FFFBF7] border border-[#FFE28A] flex items-center justify-between gap-2 animate-fade-in">
+              <div className="text-xs">
+                <div className="font-black text-[#8A5A00] flex items-center gap-1">
+                  <span>💡 仮・見込み予定として登録</span>
+                  {isTentative && (
+                    <span className="px-1.5 py-0.2 rounded-full bg-rose-500 text-white text-[9px] font-bold">
+                      仮予定
+                    </span>
+                  )}
+                </div>
+                <div className="text-[10px] text-stone-500 font-bold">
+                  その日が終わる時にアプリから実時間の確認カードが出ます🐾
+                </div>
               </div>
-              <div className="grid grid-cols-2 gap-1.5 p-0.5 bg-stone-100 rounded-xl">
-                <button
-                  type="button"
-                  onClick={() => setIsTentativeOvertime(true)}
-                  className={`py-1.5 px-2 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-1 ${
-                    isTentativeOvertime
-                      ? 'bg-white text-amber-800 shadow-xs'
-                      : 'text-stone-500 hover:text-stone-700'
-                  }`}
-                >
-                  <span>📌 仮の予定（見込み）</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setIsTentativeOvertime(false)}
-                  className={`py-1.5 px-2 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-1 ${
-                    !isTentativeOvertime
-                      ? 'bg-white text-emerald-700 shadow-xs'
-                      : 'text-stone-500 hover:text-stone-700'
-                  }`}
-                >
-                  <span>✅ 実績（確定）</span>
-                </button>
-              </div>
-              <p className="text-[10px] text-stone-400 font-bold">
-                {isTentativeOvertime
-                  ? '※「仮」としてカレンダーに表示され、当日終業時に確認して確定できます✨'
-                  : '※今月の残業集計に確定済みとして反映されます。'}
-              </p>
+              <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                <input
+                  type="checkbox"
+                  checked={isTentative}
+                  onChange={(e) => setIsTentative(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-stone-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-rose-500"></div>
+              </label>
             </div>
           )}
 
@@ -1057,9 +1040,7 @@ export const VoiceEventModal: React.FC<VoiceEventModalProps> = ({
               <Check className="w-4 h-4" />
               <span>
                 {overtimeMinutes !== null || overtimeHours !== null
-                  ? `⏱️ ${currentPartner.name}の残業(+${overtimeMinutes ?? Math.round((overtimeHours || 0) * 60)}分${isTentativeOvertime ? '・仮' : ''})を登録`
-                  : holidayWorkMinutes !== null || holidayWorkHours !== null
-                  ? `💼 ${currentPartner.name}の休日出勤(${holidayWorkMinutes ?? Math.round((holidayWorkHours || 0) * 60)}分${isTentativeOvertime ? '・仮' : ''})を登録`
+                  ? `⏱️ ${currentPartner.name}の残業(+${overtimeMinutes ?? Math.round((overtimeHours || 0) * 60)}分)を登録`
                   : 'この内容でカレンダーに登録する✨'}
               </span>
             </button>
