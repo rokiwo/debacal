@@ -428,6 +428,9 @@ export const VoiceEventModal: React.FC<VoiceEventModalProps> = ({
 
     const nowIso = new Date().toISOString();
     const cat = resolveCategoryInfo(categoryId, categoryList);
+    const todayStr = new Date().toISOString().split('T')[0];
+    const isFutureDate = dateStr > todayStr;
+    const finalTentative = isFutureDate ? true : isTentative;
 
     // 1. シフト反映
     if (applyToShift && onUpdateShiftDetails && hasOtOrHw) {
@@ -450,8 +453,9 @@ export const VoiceEventModal: React.FC<VoiceEventModalProps> = ({
           isHolidayWork: true,
           holidayWorkMinutes: hwM,
           holidayWorkHours: Math.round((hwM / 60) * 10) / 10,
-          isTentativeHolidayWork: isTentative,
+          isTentativeHolidayWork: finalTentative,
           isTentativeOvertime: false,
+          holidayWorkStatus: finalTentative ? 'tentative' : 'confirmed',
           overtimeMinutes: 0,
           overtimeHours: 0,
           overtimeStartTime: undefined,
@@ -464,7 +468,8 @@ export const VoiceEventModal: React.FC<VoiceEventModalProps> = ({
           holidayWorkMinutes: 0,
           holidayWorkHours: 0,
           isTentativeHolidayWork: false,
-          isTentativeOvertime: isTentative,
+          isTentativeOvertime: finalTentative,
+          overtimeStatus: finalTentative ? 'tentative' : 'confirmed',
           overtimeMinutes: otM,
           overtimeHours: Math.round((otM / 60) * 10) / 10,
           overtimeStartTime: overtimeStartTime ?? undefined,
@@ -996,32 +1001,37 @@ export const VoiceEventModal: React.FC<VoiceEventModalProps> = ({
           </div>
 
           {/* 仮・見込み予定（その日の終わりに確認）トグル */}
-          {(overtimeMinutes !== null || holidayWorkMinutes !== null || isTentative) && (
-            <div className="p-2.5 rounded-xl bg-[#FFFBF7] border border-[#FFE28A] flex items-center justify-between gap-2 animate-fade-in">
-              <div className="text-xs">
-                <div className="font-black text-[#8A5A00] flex items-center gap-1">
-                  <span>💡 仮・見込み予定として登録</span>
-                  {isTentative && (
+          {(overtimeMinutes !== null || holidayWorkMinutes !== null || isTentative) && (() => {
+            const isFuture = dateStr > new Date().toISOString().split('T')[0];
+            const isLockTentative = isFuture && (overtimeMinutes !== null || holidayWorkMinutes !== null);
+            return (
+              <div className="p-2.5 rounded-xl bg-[#FFFBF7] border border-[#FFE28A] flex items-center justify-between gap-2 animate-fade-in">
+                <div className="text-xs">
+                  <div className="font-black text-[#8A5A00] flex items-center gap-1">
+                    <span>💡 仮・見込み予定として登録</span>
                     <span className="px-1.5 py-0.2 rounded-full bg-rose-500 text-white text-[9px] font-bold">
                       仮予定
                     </span>
-                  )}
+                  </div>
+                  <div className="text-[10px] text-stone-500 font-bold">
+                    {isLockTentative
+                      ? '📅 登録日より後の予定のため固定で「仮予定」になります（その日に確認カードが出ます🐾）'
+                      : 'その日が終わる時にアプリから実残業時間の確認カードが出ます🐾'}
+                  </div>
                 </div>
-                <div className="text-[10px] text-stone-500 font-bold">
-                  その日が終わる時にアプリから実時間の確認カードが出ます🐾
-                </div>
+                <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={isLockTentative ? true : isTentative}
+                    disabled={isLockTentative}
+                    onChange={(e) => setIsTentative(e.target.checked)}
+                    className="sr-only peer disabled:opacity-50"
+                  />
+                  <div className="w-11 h-6 bg-stone-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-rose-500"></div>
+                </label>
               </div>
-              <label className="relative inline-flex items-center cursor-pointer shrink-0">
-                <input
-                  type="checkbox"
-                  checked={isTentative}
-                  onChange={(e) => setIsTentative(e.target.checked)}
-                  className="sr-only peer"
-                />
-                <div className="w-11 h-6 bg-stone-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-rose-500"></div>
-              </label>
-            </div>
-          )}
+            );
+          })()}
 
           {/* 4. アクションボタン（カレンダー登録 ＆ LINEにも同時送信） */}
           <div className="space-y-2 pt-1">
