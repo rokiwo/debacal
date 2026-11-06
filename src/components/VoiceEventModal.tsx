@@ -177,30 +177,47 @@ export const VoiceEventModal: React.FC<VoiceEventModalProps> = ({
       if (result.parsed.supportBadges.length > 0) {
         setSupportBadges(result.parsed.supportBadges);
       }
-      if (result.parsed.overtimeMinutes !== undefined) {
-        setOvertimeMinutes(result.parsed.overtimeMinutes);
-        setOvertimeHours(
-          result.parsed.overtimeHours ?? Math.round((result.parsed.overtimeMinutes / 60) * 10) / 10
-        );
-      } else if (result.parsed.overtimeHours !== undefined) {
-        setOvertimeMinutes(Math.round(result.parsed.overtimeHours * 60));
-        setOvertimeHours(result.parsed.overtimeHours);
-      }
-      if (result.parsed.overtimeStartTime !== undefined) {
-        setOvertimeStartTime(result.parsed.overtimeStartTime);
-      }
-      if (result.parsed.overtimeEndTime !== undefined) {
-        setOvertimeEndTime(result.parsed.overtimeEndTime);
-      }
-      if (result.parsed.holidayWorkMinutes !== undefined) {
-        setHolidayWorkMinutes(result.parsed.holidayWorkMinutes);
+      // 残業・休出の排他制御（どちらか一方のみを保持し、もう片方は確実にクリア）
+      if (result.parsed.holidayWorkMinutes !== undefined || result.parsed.holidayWorkHours !== undefined) {
+        const hwMin =
+          result.parsed.holidayWorkMinutes !== undefined
+            ? result.parsed.holidayWorkMinutes
+            : Math.round((result.parsed.holidayWorkHours || 0) * 60);
+        setHolidayWorkMinutes(hwMin);
         setHolidayWorkHours(
-          result.parsed.holidayWorkHours ??
-            Math.round((result.parsed.holidayWorkMinutes / 60) * 10) / 10
+          result.parsed.holidayWorkHours ?? Math.round((hwMin / 60) * 10) / 10
         );
-      } else if (result.parsed.holidayWorkHours !== undefined) {
-        setHolidayWorkMinutes(Math.round(result.parsed.holidayWorkHours * 60));
-        setHolidayWorkHours(result.parsed.holidayWorkHours);
+        // 残業はクリア
+        setOvertimeMinutes(null);
+        setOvertimeHours(null);
+        setOvertimeStartTime(null);
+        setOvertimeEndTime(null);
+      } else if (result.parsed.overtimeMinutes !== undefined || result.parsed.overtimeHours !== undefined) {
+        const otMin =
+          result.parsed.overtimeMinutes !== undefined
+            ? result.parsed.overtimeMinutes
+            : Math.round((result.parsed.overtimeHours || 0) * 60);
+        setOvertimeMinutes(otMin);
+        setOvertimeHours(
+          result.parsed.overtimeHours ?? Math.round((otMin / 60) * 10) / 10
+        );
+        if (result.parsed.overtimeStartTime !== undefined) {
+          setOvertimeStartTime(result.parsed.overtimeStartTime);
+        }
+        if (result.parsed.overtimeEndTime !== undefined) {
+          setOvertimeEndTime(result.parsed.overtimeEndTime);
+        }
+        // 休出はクリア
+        setHolidayWorkMinutes(null);
+        setHolidayWorkHours(null);
+      } else {
+        // 残業・休出が指定されていない場合は両方クリア
+        setOvertimeMinutes(null);
+        setOvertimeHours(null);
+        setOvertimeStartTime(null);
+        setOvertimeEndTime(null);
+        setHolidayWorkMinutes(null);
+        setHolidayWorkHours(null);
       }
       if (result.parsed.targetPartner) {
         setTargetPartner(result.parsed.targetPartner);
@@ -415,15 +432,29 @@ export const VoiceEventModal: React.FC<VoiceEventModalProps> = ({
           ? Math.round(holidayWorkHours * 60)
           : undefined;
 
-      onUpdateShiftDetails(dateStr, targetPartner, {
-        overtimeMinutes: otM,
-        overtimeHours: otM !== undefined ? Math.round((otM / 60) * 10) / 10 : undefined,
-        overtimeStartTime: overtimeStartTime ?? undefined,
-        overtimeEndTime: overtimeEndTime ?? undefined,
-        holidayWorkMinutes: hwM,
-        holidayWorkHours: hwM !== undefined ? Math.round((hwM / 60) * 10) / 10 : undefined,
-        isHolidayWork: hwM !== undefined && hwM > 0,
-      });
+      if (hwM !== undefined && hwM > 0) {
+        // 休日出勤として反映（通常残業はクリア）
+        onUpdateShiftDetails(dateStr, targetPartner, {
+          isHolidayWork: true,
+          holidayWorkMinutes: hwM,
+          holidayWorkHours: Math.round((hwM / 60) * 10) / 10,
+          overtimeMinutes: 0,
+          overtimeHours: 0,
+          overtimeStartTime: undefined,
+          overtimeEndTime: undefined,
+        });
+      } else if (otM !== undefined && otM > 0) {
+        // 通常残業として反映（休日出勤はクリア）
+        onUpdateShiftDetails(dateStr, targetPartner, {
+          isHolidayWork: false,
+          holidayWorkMinutes: 0,
+          holidayWorkHours: 0,
+          overtimeMinutes: otM,
+          overtimeHours: Math.round((otM / 60) * 10) / 10,
+          overtimeStartTime: overtimeStartTime ?? undefined,
+          overtimeEndTime: overtimeEndTime ?? undefined,
+        });
+      }
     }
 
     // 2. カレンダー個別予定
