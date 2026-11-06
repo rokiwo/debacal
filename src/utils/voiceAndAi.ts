@@ -240,20 +240,25 @@ export function parseSpokenScheduleText(
     endTime = timeRange.endTime;
     isAllDay = false;
 
-    // もし残業や休出の文脈、あるいは「何時何分から何時何分まで」と言われた場合
+    // もし休日出勤の文脈の場合
     if (isHolidayWorkIntent) {
       holidayWorkMinutes = timeRange.diffMinutes;
       holidayWorkHours = Math.round((holidayWorkMinutes / 60) * 10) / 10;
       holidayWorkStartTime = timeRange.startTime;
       holidayWorkEndTime = timeRange.endTime;
-    } else {
+      overtimeMinutes = undefined;
+      overtimeHours = undefined;
+    } else if (isOvertimeIntent) {
       // ユーザーが「11時から11時35分まで残業」「11時から11時35分なら35分で残業申請」などと言った場合、
-      // 1分単位で計算された経過分数をそのまま残業時間として自動セット！
+      // 1分単位で計算された経過分数を残業時間として自動セット
       overtimeMinutes = timeRange.diffMinutes;
       overtimeHours = Math.round((overtimeMinutes / 60) * 10) / 10;
       overtimeStartTime = timeRange.startTime;
       overtimeEndTime = timeRange.endTime;
+      holidayWorkMinutes = undefined;
+      holidayWorkHours = undefined;
     }
+    // 残業や休出の言葉が含まれない通常の予定の時間指定（例: 10:00〜12:00 ランチ）では残業・休出にしない
 
     text = text.replace(timeRange.matchedText, ' ');
   } else {
@@ -297,7 +302,20 @@ export function parseSpokenScheduleText(
   }
 
   // 4. 「時間指定（◯時間◯分、◯◯分）」による残業・休出の追加解析（timeRangeで未抽出の場合）
-  if (overtimeMinutes === undefined) {
+  // 休日出勤の追加解析
+  if (holidayWorkMinutes === undefined && isHolidayWorkIntent) {
+    const holMatch = text.match(/(?:休日出勤|休出)(?:を|は)?\s*(?:約)?\s*(\d+(?:\.\d+)?)\s*(?:時間半|時間|h)/);
+    if (holMatch) {
+      holidayWorkHours = parseFloat(holMatch[1]);
+      holidayWorkMinutes = Math.round(holidayWorkHours * 60);
+    } else if (/休日出勤|休出/.test(text)) {
+      holidayWorkHours = 8;
+      holidayWorkMinutes = 480;
+    }
+  }
+
+  // 残業の解析（休日出勤ではない場合のみ実行）
+  if (!isHolidayWorkIntent && holidayWorkMinutes === undefined && overtimeMinutes === undefined) {
     const otMatch1 = text.match(/残業(?:を|は)?\s*(?:約)?\s*(\d+(?:\.\d+)?)\s*(?:時間半|時間|h)/);
     const otMatch2 = text.match(/(\d+(?:\.\d+)?)\s*(?:時間半|時間|h)\s*(?:の)?残業/);
     const otHoursAndMinutesMatch = text.match(/(?:残業(?:を|は)?\s*)?(\d+)\s*時間(?:半|(\d+)\s*分)?(?:の残業)?/);
@@ -338,16 +356,12 @@ export function parseSpokenScheduleText(
     }
   }
 
-  // 休日出勤の追加解析
-  if (holidayWorkMinutes === undefined) {
-    const holMatch = text.match(/(?:休日出勤|休出)(?:を|は)?\s*(?:約)?\s*(\d+(?:\.\d+)?)\s*(?:時間半|時間|h)/);
-    if (holMatch) {
-      holidayWorkHours = parseFloat(holMatch[1]);
-      holidayWorkMinutes = Math.round(holidayWorkHours * 60);
-    } else if (/休日出勤|休出/.test(text)) {
-      holidayWorkHours = 8;
-      holidayWorkMinutes = 480;
-    }
+  // 念のための排他保護（万一両方が入っていたら休日出勤を優先して残業はクリア）
+  if (holidayWorkMinutes !== undefined && holidayWorkMinutes > 0) {
+    overtimeMinutes = undefined;
+    overtimeHours = undefined;
+    overtimeStartTime = undefined;
+    overtimeEndTime = undefined;
   }
 
   // 5. 対象パートナーの自動推測（「夫が」「妻が」「パパが」「ママが」）
