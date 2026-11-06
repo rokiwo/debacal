@@ -498,24 +498,50 @@ export const App: React.FC = () => {
         ? { ...baseShifts, ...createUploaded2026NovShifts('partnerA', nextStamps) }
         : baseShifts;
 
-      // 過去の二重登録バグで発生した「休日出勤と通常残業が両方正の値で重複しているシフト」を自動検出して修復
+      // 過去の二重登録バグの修復 ＆ 未来日の残業・休日出勤をすべて固定で仮予定に補正
       let shiftsRepaired = false;
       const nextShifts = { ...nextShiftsRaw };
+      const todayStr = new Date().toISOString().split('T')[0];
       for (const [k, s] of Object.entries(nextShifts)) {
         if (!s || s.deletedAt) continue;
         const otMin = getShiftOvertimeMinutes(s);
         const hwMin = getShiftHolidayWorkMinutes(s);
+        let modified = false;
+        let patched = { ...s };
+
         if (hwMin > 0 && otMin > 0) {
           // 休出フラグまたは同額重複の場合は休出として残業を0にリセット
-          nextShifts[k] = {
-            ...s,
+          patched = {
+            ...patched,
             isHolidayWork: true,
             overtimeMinutes: 0,
             overtimeHours: 0,
             overtimeStartTime: undefined,
             overtimeEndTime: undefined,
-            updatedAt: new Date().toISOString(),
           };
+          modified = true;
+        }
+
+        // 💡 ユーザー要望：未来日（今日より後）に入っている残業・休日出勤は、固定で仮予定（未確定）に補正
+        if (s.date > todayStr) {
+          const hasOt = (patched.overtimeMinutes && patched.overtimeMinutes > 0) || (patched.overtimeHours && patched.overtimeHours > 0);
+          const hasHw = patched.isHolidayWork || (patched.holidayWorkMinutes && patched.holidayWorkMinutes > 0) || (patched.holidayWorkHours && patched.holidayWorkHours > 0) || patched.stampId === 'shift_hol_work';
+
+          if (hasOt && !patched.isTentativeOvertime) {
+            patched.isTentativeOvertime = true;
+            patched.overtimeStatus = 'tentative';
+            modified = true;
+          }
+          if (hasHw && !patched.isTentativeHolidayWork) {
+            patched.isTentativeHolidayWork = true;
+            patched.holidayWorkStatus = 'tentative';
+            modified = true;
+          }
+        }
+
+        if (modified) {
+          patched.updatedAt = new Date().toISOString();
+          nextShifts[k] = patched;
           shiftsRepaired = true;
         }
       }
