@@ -999,6 +999,8 @@ export const DayDetailModal: React.FC<DayDetailModalProps> = ({
                     const hw = getShiftHolidayWorkMinutes(shiftA);
                     const ot = getShiftOvertimeMinutes(shiftA);
                     const isTentative = Boolean((ot > 0 && shiftA?.isTentativeOvertime) || (hw > 0 && shiftA?.isTentativeHolidayWork));
+                    const todayStr = new Date().toISOString().split('T')[0];
+                    const isFuture = dateStr > todayStr;
                     return (
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <span className={`px-1.5 py-0.5 rounded font-black text-[10px] shadow-2xs ${
@@ -1010,19 +1012,26 @@ export const DayDetailModal: React.FC<DayDetailModalProps> = ({
                             ? (hw > 0 ? `💼 仮休出${formatMinutesShort(hw)}` : `⏱️ 仮残+${formatMinutesShort(ot)}`)
                             : (hw > 0 ? `💼 休出${formatMinutesShort(hw)}` : `⏱️ 残+${formatMinutesShort(ot)}`)}
                         </span>
-                        {isTentative && onUpdateShiftDetails && (
+                        {isTentative && !isFuture && onUpdateShiftDetails && (
                           <button
                             type="button"
                             onClick={() => {
                               onUpdateShiftDetails(dateStr, 'partnerA', {
                                 isTentativeHolidayWork: false,
                                 isTentativeOvertime: false,
+                                holidayWorkStatus: 'confirmed',
+                                overtimeStatus: 'confirmed',
                               });
                             }}
                             className="px-2 py-0.5 rounded-lg bg-linear-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 text-white font-extrabold text-[10px] shadow-2xs active:scale-95 transition-all"
                           >
                             ✨ 実残業を確定
                           </button>
+                        )}
+                        {isTentative && isFuture && (
+                          <span className="text-[9px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                            💡 未来日のため仮登録中（当日に確認カードが出ます🐾）
+                          </span>
                         )}
                       </div>
                     );
@@ -1065,6 +1074,8 @@ export const DayDetailModal: React.FC<DayDetailModalProps> = ({
                     const hw = getShiftHolidayWorkMinutes(shiftB);
                     const ot = getShiftOvertimeMinutes(shiftB);
                     const isTentative = Boolean((ot > 0 && shiftB?.isTentativeOvertime) || (hw > 0 && shiftB?.isTentativeHolidayWork));
+                    const todayStr = new Date().toISOString().split('T')[0];
+                    const isFuture = dateStr > todayStr;
                     return (
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <span className={`px-1.5 py-0.5 rounded font-black text-[10px] shadow-2xs ${
@@ -1076,19 +1087,26 @@ export const DayDetailModal: React.FC<DayDetailModalProps> = ({
                             ? (hw > 0 ? `💼 仮休出${formatMinutesShort(hw)}` : `⏱️ 仮残+${formatMinutesShort(ot)}`)
                             : (hw > 0 ? `💼 休出${formatMinutesShort(hw)}` : `⏱️ 残+${formatMinutesShort(ot)}`)}
                         </span>
-                        {isTentative && onUpdateShiftDetails && (
+                        {isTentative && !isFuture && onUpdateShiftDetails && (
                           <button
                             type="button"
                             onClick={() => {
                               onUpdateShiftDetails(dateStr, 'partnerB', {
                                 isTentativeHolidayWork: false,
                                 isTentativeOvertime: false,
+                                holidayWorkStatus: 'confirmed',
+                                overtimeStatus: 'confirmed',
                               });
                             }}
                             className="px-2 py-0.5 rounded-lg bg-linear-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 text-white font-extrabold text-[10px] shadow-2xs active:scale-95 transition-all"
                           >
                             ✨ 実残業を確定
                           </button>
+                        )}
+                        {isTentative && isFuture && (
+                          <span className="text-[9px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                            💡 未来日のため仮登録中（当日に確認カードが出ます🐾）
+                          </span>
                         )}
                       </div>
                     );
