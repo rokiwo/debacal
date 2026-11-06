@@ -109,9 +109,7 @@ export const DayDetailModal: React.FC<DayDetailModalProps> = ({
   // 新規・編集用フォームステート
   const [eventDate, setEventDate] = useState<string>(dateStr);
   const [title, setTitle] = useState('');
-  const [categoryId, setCategoryId] = useState<CalendarCategoryId>(
-    activePartner === 'partnerB' ? 'partnerB' : 'shared'
-  );
+  const [categoryId, setCategoryId] = useState<CalendarCategoryId>(activePartner);
   const [isTask, setIsTask] = useState(false);
   const [isPrivate, setIsPrivate] = useState<boolean>(false); // 🔒 操作者限定プライベートカレンダー
   const [notifyTarget, setNotifyTarget] = useState<NotifyTarget>(activePartner);
@@ -324,9 +322,11 @@ export const DayDetailModal: React.FC<DayDetailModalProps> = ({
 
   useEffect(() => {
     if (initialOpenEventForm) {
+      setCategoryId(activePartner);
+      setNotifyTarget(activePartner);
       setShowEventForm(true);
     }
-  }, [initialOpenEventForm]);
+  }, [initialOpenEventForm, activePartner]);
 
   const [y, m, d] = (dateStr || '').split('-').map(Number);
   const dt = new Date(y || 2026, (m || 1) - 1, d || 1);
@@ -438,7 +438,7 @@ export const DayDetailModal: React.FC<DayDetailModalProps> = ({
     setTitle('');
     setFormTabMode(mode);
     const defaultTaskMode = mode === 'task';
-    const nextCat = defaultCatId || (defaultTaskMode ? activePartner : categories[0]?.id || 'shared');
+    const nextCat = defaultCatId || activePartner;
     setCategoryId(nextCat);
     setIsTask(defaultTaskMode);
     if (nextCat === 'partnerA') {
