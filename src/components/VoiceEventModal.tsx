@@ -256,7 +256,8 @@ export const VoiceEventModal: React.FC<VoiceEventModalProps> = ({
     isRecordingActiveRef.current = true;
 
     // 💡 1. ユーザーのタップ操作イベント内で getUserMedia を呼び出し、iOSのマイク権限をアクティブ保持！
-    // これにより、iPhoneの設定が「毎回確認」でも、一度許可したら停止ボタンを押すまで再確認ダイアログが絶対に出ない！
+    // ユーザーがダイアログで「許可」を押すのを await で完全に待ち受けてから音声エンジンを起動するため、
+    // アプリを立ち上げ直した初回でもタイムアウト死せず、許可ダイアログが出ても確実に録音が開始されます。
     try {
       if (
         !mediaStreamRef.current ||
@@ -447,8 +448,7 @@ export const VoiceEventModal: React.FC<VoiceEventModalProps> = ({
   }, []);
 
   // カレンダーへ保存
-  const handleSave = (e: React.FormEvent) => {
-    e.preventDefault();
+  const executeSave = (shouldOpenLine = false) => {
     stopListening();
 
     const hasOtOrHw =
@@ -520,7 +520,18 @@ export const VoiceEventModal: React.FC<VoiceEventModalProps> = ({
       onSaveEvent(ev);
     }
 
+    // もしLINE送信も希望ならLINEを即座に開く
+    if (shouldOpenLine && aiResult.partnerLineMessage) {
+      const lineUrl = `https://line.me/R/share?text=${encodeURIComponent(aiResult.partnerLineMessage)}`;
+      window.open(lineUrl, '_blank');
+    }
+
     onClose();
+  };
+
+  const handleSave = (e: React.FormEvent) => {
+    e.preventDefault();
+    executeSave(false);
   };
 
   // サンプルフレーズを適用
@@ -575,34 +586,51 @@ export const VoiceEventModal: React.FC<VoiceEventModalProps> = ({
         </div>
 
         <form onSubmit={handleSave} className="flex-1 overflow-y-auto p-3.5 space-y-3 text-xs">
-          {/* 1. マイク録音エリア ＆ 音波アニメーション */}
+          {/* 1. マイク録音エリア ＆ 多重音声波紋アニメーション */}
           <div className="bg-white rounded-3xl p-4 border-2 border-[#FFE5EC] text-center space-y-3 shadow-xs relative overflow-hidden">
             {/* 録音中の背景発光エフェクト */}
             {isListening && (
-              <div className="absolute inset-0 bg-rose-50/40 pointer-events-none animate-pulse" />
+              <div className="absolute inset-0 bg-rose-50/50 pointer-events-none animate-pulse" />
             )}
 
-            <div className="relative flex flex-col items-center justify-center gap-2">
-              {/* マイクボタン本体 */}
-              <button
-                type="button"
-                onClick={toggleListening}
-                className={`w-20 h-20 rounded-full flex items-center justify-center shadow-lg transition-all relative ${
-                  isListening
-                    ? 'bg-gradient-to-tr from-rose-500 to-rose-600 text-white ring-8 ring-rose-200 scale-105'
-                    : 'bg-gradient-to-tr from-[#FF8FAB] to-[#B388EB] text-white hover:scale-105 active:scale-95'
-                }`}
-                title={isListening ? 'タップして音声を止める' : 'タップして音声を始める'}
-              >
-                {/* 録音中パルスリング */}
+            <div className="relative flex flex-col items-center justify-center gap-2 py-1">
+              {/* マイクボタン本体 ＆ 🎙️ 多重音声波紋アニメーション */}
+              <div className="relative flex items-center justify-center">
+                {/* 録音中の三重ピンク波紋エフェクト */}
                 {isListening && (
-                  <span className="absolute inset-0 rounded-full bg-rose-400 animate-ping opacity-30 pointer-events-none" />
+                  <>
+                    <span className="absolute w-32 h-32 rounded-full bg-rose-300 animate-ping opacity-25 pointer-events-none [animation-duration:2.2s]" />
+                    <span className="absolute w-28 h-28 rounded-full border-2 border-rose-400 animate-ping opacity-40 pointer-events-none [animation-duration:1.5s]" />
+                    <span className="absolute w-24 h-24 rounded-full bg-rose-400 animate-pulse opacity-30 pointer-events-none" />
+                  </>
                 )}
-                {isListening ? <MicOff className="w-9 h-9" /> : <Mic className="w-9 h-9" />}
-              </button>
 
-              {/* 録音ステータス表示 */}
-              <div className="space-y-1 w-full max-w-sm">
+                <button
+                  type="button"
+                  onClick={toggleListening}
+                  className={`w-20 h-20 rounded-full flex items-center justify-center shadow-lg transition-all relative z-10 ${
+                    isListening
+                      ? 'bg-gradient-to-tr from-rose-500 to-rose-600 text-white ring-8 ring-rose-200 scale-105 shadow-rose-300/50'
+                      : 'bg-gradient-to-tr from-[#FF8FAB] to-[#B388EB] text-white hover:scale-105 active:scale-95'
+                  }`}
+                  title={isListening ? 'タップして音声を止める' : 'タップして音声を始める'}
+                >
+                  {isListening ? <MicOff className="w-9 h-9" /> : <Mic className="w-9 h-9" />}
+                </button>
+              </div>
+
+              {/* 録音ステータス表示 ＆ リアルタイム音声イコライザー波形 */}
+              <div className="space-y-1.5 w-full max-w-sm pt-1">
+                {isListening && (
+                  <div className="flex items-center justify-center gap-1 h-5">
+                    <span className="w-1 bg-rose-500 rounded-full animate-bounce [animation-delay:-0.3s] h-3.5" />
+                    <span className="w-1 bg-rose-400 rounded-full animate-bounce [animation-delay:-0.15s] h-5" />
+                    <span className="w-1.5 bg-rose-600 rounded-full animate-bounce [animation-delay:0s] h-6" />
+                    <span className="w-1 bg-rose-400 rounded-full animate-bounce [animation-delay:-0.2s] h-5" />
+                    <span className="w-1 bg-rose-500 rounded-full animate-bounce [animation-delay:-0.4s] h-3.5" />
+                  </div>
+                )}
+
                 <div className="font-black text-sm text-stone-800">
                   {isListening ? (
                     <span className="text-rose-600 flex items-center justify-center gap-1.5 animate-pulse">
@@ -616,22 +644,37 @@ export const VoiceEventModal: React.FC<VoiceEventModalProps> = ({
                   )}
                 </div>
 
-                {/* ユーザーが自分のタイミングで切れる「話し終わった」ボタン */}
+                {/* ユーザーが自分のタイミングで切れる「話し終わった」ボタン ＆ 録音中Undoボタン */}
                 {isListening ? (
-                  <button
-                    type="button"
-                    onClick={stopListening}
-                    className="w-full py-2.5 px-4 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 active:scale-95 text-white font-black text-sm shadow-md flex items-center justify-center gap-2 animate-bounce"
-                  >
-                    <span>⏹️</span>
-                    <span>話し終わった（マイクを止めて確定）</span>
-                  </button>
+                  <div className="space-y-2 w-full pt-1">
+                    <button
+                      type="button"
+                      onClick={stopListening}
+                      className="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 active:scale-95 text-white font-black text-sm shadow-md flex items-center justify-center gap-2 animate-bounce"
+                    >
+                      <span>⏹️</span>
+                      <span>話し終わった（マイクを止めて確定）</span>
+                    </button>
+
+                    {/* 録音中（話している最中）でも言い直せるUndoボタン！ */}
+                    {confirmedPhrases.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleUndoLastPhrase}
+                        className="w-full py-1.5 px-3 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-800 font-bold text-xs flex items-center justify-center gap-1 active:scale-95 transition-all shadow-2xs"
+                        title="直前に話したフレーズを取り消して言い直す"
+                      >
+                        <Undo2 className="w-3.5 h-3.5 text-amber-600" />
+                        <span>⌫ 直前の発話を消す（マイクを止めず言い直す）</span>
+                      </button>
+                    )}
+                  </div>
                 ) : (
                   <div className="flex items-center justify-center gap-2 flex-wrap pt-1">
                     <button
                       type="button"
                       onClick={startListening}
-                      className="py-2 px-4 rounded-xl bg-gradient-to-r from-[#FF8FAB] to-[#B388EB] text-white font-extrabold text-xs shadow-xs active:scale-95 flex items-center gap-1.5"
+                      className="py-2.5 px-4 rounded-xl bg-gradient-to-r from-[#FF8FAB] to-[#B388EB] text-white font-extrabold text-xs shadow-xs active:scale-95 flex items-center gap-1.5"
                     >
                       <Mic className="w-3.5 h-3.5" />
                       <span>{hasAnyText ? '🎙️ 続きを話す（追記）' : '🎙️ タップして話す'}</span>
@@ -641,7 +684,7 @@ export const VoiceEventModal: React.FC<VoiceEventModalProps> = ({
                       <button
                         type="button"
                         onClick={handleUndoLastPhrase}
-                        className="py-2 px-3 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold text-xs active:scale-95 flex items-center gap-1"
+                        className="py-2.5 px-3 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold text-xs active:scale-95 flex items-center gap-1"
                         title="最後に話したフレーズを取り消す"
                       >
                         <Undo2 className="w-3.5 h-3.5 text-stone-500" />
@@ -653,7 +696,7 @@ export const VoiceEventModal: React.FC<VoiceEventModalProps> = ({
                       <button
                         type="button"
                         onClick={handleRestart}
-                        className="py-2 px-3 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold text-xs active:scale-95 flex items-center gap-1"
+                        className="py-2.5 px-3 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold text-xs active:scale-95 flex items-center gap-1"
                       >
                         <RotateCcw className="w-3.5 h-3.5 text-stone-500" />
                         <span>最初からやり直す</span>
@@ -676,7 +719,7 @@ export const VoiceEventModal: React.FC<VoiceEventModalProps> = ({
               <div className="flex items-center justify-between text-[11px] text-stone-400 font-bold px-1">
                 <span>🎙️ 認識された言葉（何秒間が空いても消えません）:</span>
                 {confirmedPhrases.length > 0 && (
-                  <span>{confirmedPhrases.length}個のフレーズ</span>
+                  <span className="text-[#FF8FAB] font-black">{confirmedPhrases.length}個のフレーズ</span>
                 )}
               </div>
               <div className="w-full min-h-[52px] p-2.5 rounded-2xl border-2 border-stone-200 bg-[#FFFBF7] font-bold text-xs text-stone-800 leading-relaxed max-h-28 overflow-y-auto">
@@ -724,6 +767,18 @@ export const VoiceEventModal: React.FC<VoiceEventModalProps> = ({
                 ))}
               </div>
             </div>
+
+            {/* iPhone設定ガイド（立ち上げ直してもずっと許可状態にするヒント） */}
+            <details className="text-left bg-stone-50 rounded-2xl p-2 border border-stone-200/80 text-[11px] text-stone-600">
+              <summary className="font-bold text-stone-600 cursor-pointer list-none flex items-center justify-between px-1">
+                <span>💡 iPhoneで毎回許可を聞かれないようにするには？</span>
+                <span className="text-[10px] text-stone-400">▼</span>
+              </summary>
+              <div className="mt-2 space-y-1 text-[10px] leading-relaxed text-stone-500 font-medium px-1">
+                <p>・ SafariのURL欄左側の「ぁあ（または設定マーク）」＞「Webサイトの設定」＞「マイク: 許可」に設定すると、次回アプリを立ち上げ直してもずっと許可が維持されます✨</p>
+                <p>・ Safariの共有ボタンから「ホーム画面に追加」して起動した場合も、権限が永続保持されます。</p>
+              </div>
+            </details>
           </div>
 
           {/* 2. ✨ AIリアルタイムきれいな文章＆カレンダー自動解析カード */}
@@ -783,7 +838,7 @@ export const VoiceEventModal: React.FC<VoiceEventModalProps> = ({
               </div>
             </div>
 
-            {/* 💬 パートナーへLINEで連絡するボタン */}
+            {/* 💬 パートナーへLINEで連絡するワンタップボタン */}
             {aiResult.partnerLineMessage && (
               <div className="p-3 rounded-2xl bg-white border border-emerald-200 shadow-2xs space-y-2">
                 <div className="flex items-center justify-between">
@@ -819,6 +874,7 @@ export const VoiceEventModal: React.FC<VoiceEventModalProps> = ({
                   rel="noreferrer"
                   className="w-full py-2 px-3 rounded-xl bg-[#06C755] hover:bg-[#05b04b] active:scale-95 text-white font-black text-xs flex items-center justify-center gap-1.5 shadow-2xs transition-all"
                 >
+                  <MessageCircle className="w-4 h-4" />
                   <span>💬 この内容をLINEでパートナーに送る</span>
                 </a>
               </div>
@@ -966,26 +1022,40 @@ export const VoiceEventModal: React.FC<VoiceEventModalProps> = ({
             )}
           </div>
 
-          {/* 4. カレンダーへ登録するメインボタン */}
-          <button
-            type="submit"
-            disabled={
-              !title.trim() &&
-              !hasAnyText &&
-              overtimeMinutes === null &&
-              overtimeHours === null &&
-              holidayWorkMinutes === null &&
-              holidayWorkHours === null
-            }
-            className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-[#FF8FAB] to-[#B388EB] disabled:opacity-40 text-white font-black text-sm shadow-md flex items-center justify-center gap-2 active:scale-98 transition-all"
-          >
-            <Check className="w-4 h-4" />
-            <span>
-              {overtimeMinutes !== null || overtimeHours !== null
-                ? `⏱️ ${currentPartner.name}の残業(+${overtimeMinutes ?? Math.round((overtimeHours || 0) * 60)}分)を反映して登録`
-                : 'この内容でカレンダーに登録する✨'}
-            </span>
-          </button>
+          {/* 4. アクションボタン（カレンダー登録 ＆ LINEにも同時送信） */}
+          <div className="space-y-2 pt-1">
+            <button
+              type="submit"
+              disabled={
+                !title.trim() &&
+                !hasAnyText &&
+                overtimeMinutes === null &&
+                overtimeHours === null &&
+                holidayWorkMinutes === null &&
+                holidayWorkHours === null
+              }
+              className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-[#FF8FAB] to-[#B388EB] disabled:opacity-40 text-white font-black text-sm shadow-md flex items-center justify-center gap-2 active:scale-98 transition-all"
+            >
+              <Check className="w-4 h-4" />
+              <span>
+                {overtimeMinutes !== null || overtimeHours !== null
+                  ? `⏱️ ${currentPartner.name}の残業(+${overtimeMinutes ?? Math.round((overtimeHours || 0) * 60)}分)を登録`
+                  : 'この内容でカレンダーに登録する✨'}
+              </span>
+            </button>
+
+            {/* 💬 カレンダー登録 ＋ LINEにも同時送信ボタン */}
+            {aiResult.partnerLineMessage && (
+              <button
+                type="button"
+                onClick={() => executeSave(true)}
+                className="w-full py-2.5 rounded-2xl bg-[#E6F7EF] hover:bg-[#d2f2e3] text-[#136370] border border-[#a2e3c4] font-black text-xs flex items-center justify-center gap-2 active:scale-98 transition-all"
+              >
+                <MessageCircle className="w-4 h-4 text-[#06C755]" />
+                <span>カレンダーに登録して、続けてLINEでも伝える 💬</span>
+              </button>
+            )}
+          </div>
         </form>
       </div>
     </div>
