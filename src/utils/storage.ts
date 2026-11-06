@@ -188,6 +188,23 @@ export function mergeCalendarStores(
     }
   }
 
+  // クラウド同期・マージ時にも休出と残業の重複二重登録を自動クリーンアップ
+  for (const [id, s] of Object.entries(mergedShifts)) {
+    if (!s || s.deletedAt) continue;
+    const otMin = s.overtimeMinutes ?? (s.overtimeHours ? s.overtimeHours * 60 : 0);
+    const hwMin = s.holidayWorkMinutes ?? (s.holidayWorkHours ? s.holidayWorkHours * 60 : 0);
+    if (hwMin > 0 && otMin > 0) {
+      mergedShifts[id] = {
+        ...s,
+        isHolidayWork: true,
+        overtimeMinutes: 0,
+        overtimeHours: 0,
+        overtimeStartTime: undefined,
+        overtimeEndTime: undefined,
+      };
+    }
+  }
+
   // 2. 予定イベントのマージ（IDごと）
   const mergedEvents: Record<string, ScheduleEvent> = { ...local.events };
   for (const [id, remoteEvent] of Object.entries(remote.events || {})) {
