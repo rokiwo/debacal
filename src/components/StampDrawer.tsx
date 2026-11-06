@@ -98,8 +98,7 @@ export const StampDrawer: React.FC<StampDrawerProps> = ({
   const partnerA = metadata.partners.partnerA;
   const partnerB = metadata.partners.partnerB;
 
-  const currentShiftPartner: PartnerId =
-    activePartner || (activeTab === 'partnerB_shift' ? 'partnerB' : 'partnerA');
+  const currentShiftPartner: PartnerId = activePartner;
 
   const shiftStamps = getPartnerShiftStamps(stamps, currentShiftPartner);
 
