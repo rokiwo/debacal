@@ -197,12 +197,12 @@ export const WidgetCompactView: React.FC<WidgetCompactViewProps> = ({
                 type="button"
                 onClick={onExitWidgetMode}
                 className="px-2.5 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-900 text-[11px] font-extrabold flex items-center gap-1"
+                title={`${store.metadata.partners[activePartner].name}の残業時間`}
               >
                 <Timer className="w-3 h-3 text-amber-600" />
                 <span>
-                  残業 {partnerA.avatar}
-                  {overtimeSummary.partnerA.totalExtraFormatted} / {partnerB.avatar}
-                  {overtimeSummary.partnerB.totalExtraFormatted}
+                  残業 {store.metadata.partners[activePartner].avatar}
+                  {overtimeSummary[activePartner].totalExtraFormatted}
                 </span>
               </button>
 
@@ -349,7 +349,8 @@ export const WidgetCompactView: React.FC<WidgetCompactViewProps> = ({
                 {(() => {
                   const otMinA = getShiftOvertimeMinutes(shiftA);
                   const holMinA = getShiftHolidayWorkMinutes(shiftA);
-                  const hasExtraA = Boolean(subLabelA) || otMinA > 0 || holMinA > 0;
+                  const showOtA = activePartner === 'partnerA' && (otMinA > 0 || holMinA > 0);
+                  const hasExtraA = Boolean(subLabelA) || showOtA;
                   return (
                     <div
                       style={
@@ -390,7 +391,7 @@ export const WidgetCompactView: React.FC<WidgetCompactViewProps> = ({
                             {shiftA?.subStartTime ? `(${shiftA.subStartTime})` : ''}
                           </span>
                         )}
-                        {(otMinA > 0 || holMinA > 0) && (
+                        {showOtA && (
                           <span className="px-1.5 py-0.5 rounded-lg bg-rose-500 text-white text-[11px] font-extrabold">
                             {holMinA > 0
                               ? `⏱️休出${formatMinutesShort(holMinA)}`
@@ -406,7 +407,8 @@ export const WidgetCompactView: React.FC<WidgetCompactViewProps> = ({
                 {(() => {
                   const otMinB = getShiftOvertimeMinutes(shiftB);
                   const holMinB = getShiftHolidayWorkMinutes(shiftB);
-                  const hasExtraB = Boolean(subLabelB) || otMinB > 0 || holMinB > 0;
+                  const showOtB = activePartner === 'partnerB' && (otMinB > 0 || holMinB > 0);
+                  const hasExtraB = Boolean(subLabelB) || showOtB;
                   return (
                     <div
                       style={
@@ -447,7 +449,7 @@ export const WidgetCompactView: React.FC<WidgetCompactViewProps> = ({
                             {shiftB?.subStartTime ? `(${shiftB.subStartTime})` : ''}
                           </span>
                         )}
-                        {(otMinB > 0 || holMinB > 0) && (
+                        {showOtB && (
                           <span className="px-1.5 py-0.5 rounded-lg bg-rose-500 text-white text-[11px] font-extrabold">
                             {holMinB > 0
                               ? `⏱️休出${formatMinutesShort(holMinB)}`
