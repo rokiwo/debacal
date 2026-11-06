@@ -63,11 +63,11 @@ export interface ShiftEntry {
   holidayWorkHours?: number;     // 従来の時間小数（後方互換用：例 4.0）
   isHolidayWork?: boolean;       // 休日出勤フラグ
 
-  // ⏱️ 残業・休日出勤の「仮予定（見込み）」ステータス
-  // 'tentative' = 仮予定（未確定。終業時等に確認して確定させる）
-  // 'confirmed' = 実績確定（未指定時はデフォルトで確定扱い）
-  overtimeStatus?: 'tentative' | 'confirmed';
-  holidayWorkStatus?: 'tentative' | 'confirmed';
+  // 仮・見込みフラグ（日終了時に実残業時間をそっちから確認して確定させる機能）
+  isTentativeOvertime?: boolean;      // 残業が「仮・見込み予定」かどうか（未確定）
+  isTentativeHolidayWork?: boolean;  // 休日出勤が「仮・見込み予定」かどうか（未確定）
+  overtimeStatus?: 'tentative' | 'confirmed';      // 既存ヘルパー互換用ステータス
+  holidayWorkStatus?: 'tentative' | 'confirmed';  // 既存ヘルパー互換用ステータス
 
   memo?: string;
   createdBy: PartnerId;
@@ -92,6 +92,7 @@ export interface ScheduleEvent {
   endTime?: string;       // "HH:mm"
   memo?: string;
   supportBadges?: string[]; // 例: ["🍳夜ごはん不要", "🍱お弁当あり"]
+  isTentative?: boolean;    // 仮予定フラグ（「〜予定」「〜かも」）
 
   // タスク機能＆Googleカレンダー端末別通知フィールド
   isTask?: boolean;           // true の場合はタスク（ToDoチェック付き）として扱う
