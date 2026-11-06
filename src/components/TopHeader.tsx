@@ -253,107 +253,108 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
           {/* 左側：⏱️残業時間 ＆ ✨休一致（広々と配置され、右側はツールアイコンのみなので絶対に被らない！） */}
           <div className="flex items-center gap-1 sm:gap-1.5 min-w-0">
             {/* ⏱️ 今月の残業時間バッジ */}
+            {/* ⏱️ 今月の残業時間バッジ（操作中のパートナーのみ表示） */}
             <div className="relative shrink-0">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowOvertimePopup(!showOvertimePopup);
-                  setShowHolidayPopup(false);
-                }}
-                className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-[#FFF6D6] hover:bg-[#FFE8A3] border border-[#FFE28A] text-[#8A5A00] text-xs font-black shadow-2xs active:scale-95 transition-all"
-                title="今月の残業時間・休日出勤時間・バイト回数を確認"
-              >
-                <Timer className="w-3.5 h-3.5 text-[#D49600] shrink-0" />
-                <span>残業</span>
-                <span className="font-black">
-                  {overtimeSummary.partnerA.totalExtraMinutes + overtimeSummary.partnerB.totalExtraMinutes}分
-                </span>
-              </button>
-
-              {showOvertimePopup && (
-                <div className="absolute left-0 mt-1.5 w-72 sm:w-80 bg-white rounded-2xl shadow-xl border-2 border-[#FFE28A] p-3 z-50 animate-pop text-xs space-y-2">
-                  <div className="flex items-center justify-between pb-1 border-b border-stone-100">
-                    <span className="font-extrabold text-[#8A5A00] flex items-center gap-1">
-                      <Timer className="w-4 h-4 text-[#FFB703]" />
-                      {month}月の残業・休日出勤・バイト集計
-                    </span>
+              {(() => {
+                const currentPartner = metadata.partners[activePartner];
+                const activeSum = overtimeSummary[activePartner];
+                return (
+                  <>
                     <button
                       type="button"
-                      onClick={() => setShowOvertimePopup(false)}
-                      className="text-stone-400 hover:text-stone-600 font-bold px-1"
+                      onClick={() => {
+                        setShowOvertimePopup(!showOvertimePopup);
+                        setShowHolidayPopup(false);
+                      }}
+                      className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-[#FFF6D6] hover:bg-[#FFE8A3] border border-[#FFE28A] text-[#8A5A00] text-xs font-black shadow-2xs active:scale-95 transition-all"
+                      title={`${currentPartner.name}の今月の残業時間・休日出勤時間・バイト回数を確認`}
                     >
-                      ✕
+                      <Timer className="w-3.5 h-3.5 text-[#D49600] shrink-0" />
+                      <span>{currentPartner.avatar} 残業</span>
+                      <span className="font-black">
+                        {activeSum.totalExtraMinutes}分
+                      </span>
                     </button>
-                  </div>
 
-                  {/* ゆうと・さやそれぞれの残業・休出・バイト集計カード */}
-                  {(['partnerA', 'partnerB'] as PartnerId[]).map((pid) => {
-                    const p = metadata.partners[pid];
-                    const sum = overtimeSummary[pid];
-                    return (
-                      <div
-                        key={pid}
-                        className="p-2 rounded-xl bg-[#FFFBF7] border border-stone-200/80 space-y-1"
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="font-extrabold text-stone-800">
-                            {p.avatar} {p.name}
+                    {showOvertimePopup && (
+                      <div className="absolute left-0 mt-1.5 w-72 sm:w-80 bg-white rounded-2xl shadow-xl border-2 border-[#FFE28A] p-3 z-50 animate-pop text-xs space-y-2">
+                        <div className="flex items-center justify-between pb-1 border-b border-stone-100">
+                          <span className="font-extrabold text-[#8A5A00] flex items-center gap-1">
+                            <Timer className="w-4 h-4 text-[#FFB703]" />
+                            {month}月の残業・休出（{currentPartner.name}）
                           </span>
-                          <span className="px-2 py-0.5 rounded-full bg-[#FFF6D6] text-[#8A5A00] font-black text-xs">
-                            合計 {sum.totalExtraMinutes}分
-                            {sum.totalExtraMinutes >= 60 && ` (${sum.totalExtraFormatted})`}
-                          </span>
-                        </div>
-                        <div className="flex flex-wrap gap-2 text-[11px] text-stone-600 font-bold">
-                          <span>
-                            ⏱️ 通常残業: {sum.overtimeMinutes}分
-                            {sum.overtimeMinutes >= 60 && ` (${sum.overtimeFormatted})`}
-                          </span>
-                          <span>
-                            💼 休日出勤: {sum.holidayWorkMinutes}分
-                            {sum.holidayWorkMinutes >= 60 && ` (${sum.holidayWorkFormatted})`}
-                          </span>
-                          <span>🏪 バイト: {sum.partTimeCount}回</span>
+                          <button
+                            type="button"
+                            onClick={() => setShowOvertimePopup(false)}
+                            className="text-stone-400 hover:text-stone-600 font-bold px-1"
+                          >
+                            ✕
+                          </button>
                         </div>
 
-                        {sum.entries.length > 0 && (
-                          <div className="flex flex-wrap gap-1 pt-0.5">
-                            {sum.entries.map((en) => {
-                              const dayN = Number(en.date.split('-')[2]);
-                              const hwMin = getShiftHolidayWorkMinutes(en);
-                              let otMin = getShiftOvertimeMinutes(en);
-                              if (hwMin > 0 && otMin > 0 && (en.isHolidayWork || en.stampId === 'shift_hol_work' || otMin === hwMin)) {
-                                otMin = 0; // 重複時は休出優先
-                              }
-
-                              const labelParts: string[] = [];
-                              if (hwMin > 0) labelParts.push(`休出${hwMin}分`);
-                              if (otMin > 0) labelParts.push(`+${otMin}分`);
-                              if (labelParts.length === 0 && (en.subCustomLabel || en.subStampId || en.stampId === 'shift_part')) {
-                                labelParts.push('バイト');
-                              }
-
-                              return (
-                                <button
-                                  key={en.id}
-                                  type="button"
-                                  onClick={() => {
-                                    onSelectDate(en.date);
-                                    setShowOvertimePopup(false);
-                                  }}
-                                  className="px-1.5 py-0.5 rounded-lg bg-white border border-stone-200 text-[10px] font-bold text-stone-700 hover:border-[#FF8FAB]"
-                                >
-                                  {dayN}日({labelParts.join(' / ') || '予定'})
-                                </button>
-                              );
-                            })}
+                        {/* 現在操作中のパートナーのカードのみ表示 */}
+                        <div className="p-2.5 rounded-xl bg-[#FFFBF7] border border-stone-200/80 space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="font-extrabold text-stone-800 flex items-center gap-1">
+                              <span>{currentPartner.avatar}</span>
+                              <span>{currentPartner.name}</span>
+                            </span>
+                            <span className="px-2 py-0.5 rounded-full bg-[#FFF6D6] text-[#8A5A00] font-black text-xs">
+                              合計 {activeSum.totalExtraMinutes}分
+                              {activeSum.totalExtraMinutes >= 60 && ` (${activeSum.totalExtraFormatted})`}
+                            </span>
                           </div>
-                        )}
+                          <div className="flex flex-wrap gap-2 text-[11px] text-stone-600 font-bold">
+                            <span>
+                              ⏱️ 通常残業: {activeSum.overtimeMinutes}分
+                              {activeSum.overtimeMinutes >= 60 && ` (${activeSum.overtimeFormatted})`}
+                            </span>
+                            <span>
+                              💼 休日出勤: {activeSum.holidayWorkMinutes}分
+                              {activeSum.holidayWorkMinutes >= 60 && ` (${activeSum.holidayWorkFormatted})`}
+                            </span>
+                            <span>🏪 バイト: {activeSum.partTimeCount}回</span>
+                          </div>
+
+                          {activeSum.entries.length > 0 && (
+                            <div className="flex flex-wrap gap-1 pt-1 border-t border-stone-100">
+                              {activeSum.entries.map((en) => {
+                                const dayN = Number(en.date.split('-')[2]);
+                                const hwMin = getShiftHolidayWorkMinutes(en);
+                                let otMin = getShiftOvertimeMinutes(en);
+                                if (hwMin > 0 && otMin > 0 && (en.isHolidayWork || en.stampId === 'shift_hol_work' || otMin === hwMin)) {
+                                  otMin = 0; // 重複時は休出優先
+                                }
+
+                                const labelParts: string[] = [];
+                                if (hwMin > 0) labelParts.push(`休出${hwMin}分`);
+                                if (otMin > 0) labelParts.push(`+${otMin}分`);
+                                if (labelParts.length === 0 && (en.subCustomLabel || en.subStampId || en.stampId === 'shift_part')) {
+                                  labelParts.push('バイト');
+                                }
+
+                                return (
+                                  <button
+                                    key={en.id}
+                                    type="button"
+                                    onClick={() => {
+                                      onSelectDate(en.date);
+                                      setShowOvertimePopup(false);
+                                    }}
+                                    className="px-1.5 py-0.5 rounded-lg bg-white border border-stone-200 text-[10px] font-bold text-stone-700 hover:border-[#FF8FAB]"
+                                  >
+                                    {dayN}日({labelParts.join(' / ') || '予定'})
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    );
-                  })}
-                </div>
-              )}
+                    )}
+                  </>
+                );
+              })()}
             </div>
 
             {/* ✨今月のお休み一致バッジ */}
