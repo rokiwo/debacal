@@ -32,6 +32,7 @@ import {
   getJapaneseHoliday,
   getShiftHolidayWorkMinutes,
   getShiftOvertimeMinutes,
+  isShiftExtraTentative,
   resolveCategoryInfo,
   SUPPORT_BADGE_PRESETS,
 } from '../utils/presets';
@@ -994,13 +995,21 @@ export const DayDetailModal: React.FC<DayDetailModalProps> = ({
                       🌙 夜バ
                     </span>
                   )}
-                  {(getShiftHolidayWorkMinutes(shiftA) > 0 || getShiftOvertimeMinutes(shiftA) > 0) && (
-                    <span className="px-1.5 py-0.5 rounded bg-rose-500 text-white font-black text-[10px] shadow-2xs">
-                      {getShiftHolidayWorkMinutes(shiftA) > 0
-                        ? `💼 休出${formatMinutesShort(getShiftHolidayWorkMinutes(shiftA))}`
-                        : `⏱️ 残+${formatMinutesShort(getShiftOvertimeMinutes(shiftA))}`}
-                    </span>
-                  )}
+                  {activePartner === 'partnerA' && (getShiftHolidayWorkMinutes(shiftA) > 0 || getShiftOvertimeMinutes(shiftA) > 0) && (() => {
+                    const isTentative = isShiftExtraTentative(shiftA);
+                    return (
+                      <span className={`px-1.5 py-0.5 rounded font-black text-[10px] shadow-2xs ${
+                        isTentative
+                          ? 'bg-amber-400 text-stone-900 border border-amber-500'
+                          : 'bg-rose-500 text-white'
+                      }`}>
+                        {isTentative && '📌仮 '}
+                        {getShiftHolidayWorkMinutes(shiftA) > 0
+                          ? `💼 休出${formatMinutesShort(getShiftHolidayWorkMinutes(shiftA))}`
+                          : `⏱️ 残+${formatMinutesShort(getShiftOvertimeMinutes(shiftA))}`}
+                      </span>
+                    );
+                  })()}
                 </div>
                 {shiftA && renderAuditAndReadStatus(shiftA.createdBy, shiftA.createdAt, shiftA.updatedAt)}
               </div>
@@ -1035,13 +1044,21 @@ export const DayDetailModal: React.FC<DayDetailModalProps> = ({
                       🌙 夜バ
                     </span>
                   )}
-                  {(getShiftHolidayWorkMinutes(shiftB) > 0 || getShiftOvertimeMinutes(shiftB) > 0) && (
-                    <span className="px-1.5 py-0.5 rounded bg-rose-500 text-white font-black text-[10px] shadow-2xs">
-                      {getShiftHolidayWorkMinutes(shiftB) > 0
-                        ? `💼 休出${formatMinutesShort(getShiftHolidayWorkMinutes(shiftB))}`
-                        : `⏱️ 残+${formatMinutesShort(getShiftOvertimeMinutes(shiftB))}`}
-                    </span>
-                  )}
+                  {activePartner === 'partnerB' && (getShiftHolidayWorkMinutes(shiftB) > 0 || getShiftOvertimeMinutes(shiftB) > 0) && (() => {
+                    const isTentative = isShiftExtraTentative(shiftB);
+                    return (
+                      <span className={`px-1.5 py-0.5 rounded font-black text-[10px] shadow-2xs ${
+                        isTentative
+                          ? 'bg-amber-400 text-stone-900 border border-amber-500'
+                          : 'bg-rose-500 text-white'
+                      }`}>
+                        {isTentative && '📌仮 '}
+                        {getShiftHolidayWorkMinutes(shiftB) > 0
+                          ? `💼 休出${formatMinutesShort(getShiftHolidayWorkMinutes(shiftB))}`
+                          : `⏱️ 残+${formatMinutesShort(getShiftOvertimeMinutes(shiftB))}`}
+                      </span>
+                    );
+                  })()}
                 </div>
                 {shiftB && renderAuditAndReadStatus(shiftB.createdBy, shiftB.createdAt, shiftB.updatedAt)}
               </div>
