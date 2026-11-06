@@ -78,10 +78,12 @@ export const TaskManagerModal: React.FC<TaskManagerModalProps> = ({
   const partnerA = metadata.partners.partnerA;
   const partnerB = metadata.partners.partnerB;
 
-  // タスクのみ抽出（isTask === true かつ deletedAt なし）
+  // タスクのみ抽出（isTask === true かつ deletedAt なし、他人のプライベートタスクは除外）
   const allTasks = useMemo(() => {
-    return Object.values(events).filter((ev) => ev.isTask && !ev.deletedAt);
-  }, [events]);
+    return Object.values(events).filter(
+      (ev) => ev.isTask && !ev.deletedAt && (!ev.privateFor || ev.privateFor === activePartner)
+    );
+  }, [activePartner, events]);
 
   // フィルター適用後のタスク
   const filteredTasks = useMemo(() => {
