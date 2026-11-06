@@ -1,9 +1,9 @@
 // ペアカレ (PairCal) データモデル定義
 
 export type PartnerId = 'partnerA' | 'partnerB';
-// デフォルトの3項目（二人予定・夫予定・妻予定）に加え、ユーザーが自由に追加・削除可能
+// デフォルトの3項目（二人予定・夫予定・妻予定）に加え、ユーザーが自由に追加・削除可能、さらに操作者限定プライベートモードも可能
 export type CalendarCategoryId = string;
-export type FilterCategoryId = 'all' | CalendarCategoryId;
+export type FilterCategoryId = 'all' | 'private' | CalendarCategoryId;
 
 // カレンダーの予定項目（カテゴリ）定義（追加・削除・カスタマイズ可能）
 export interface CalendarCategoryItem {
@@ -100,6 +100,9 @@ export interface ScheduleEvent {
   notifyTarget?: NotifyTarget; // 通知を送る対象（'partnerA'=夫の端末のみ, 'partnerB'=妻の端末のみ, 'both'=両方）
   reminderMinutes?: number;   // Googleカレンダー通知タイミング（分前: 0=定刻, 10=10分前, 30=30分前, 60=1時間前, 1440=前日）
   googleCalSynced?: boolean;  // Googleカレンダーへ登録済みフラグ
+
+  // 🔒 操作者限定プライベート予定（相手の画面・通知・カレンダーには一切表示しない特別な予定）
+  privateFor?: PartnerId;
 
   createdBy: PartnerId;   // 誰が入れたか
   createdAt: string;      // いつ予定を入れたか
