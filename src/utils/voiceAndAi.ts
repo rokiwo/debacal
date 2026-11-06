@@ -1208,7 +1208,7 @@ export function aiFormatSpokenText(
         date: baseDate,
         title: '',
         isAllDay: true,
-        categoryId: 'shared',
+        categoryId: activePartner,
         supportBadges: [],
       },
     };
@@ -1223,7 +1223,7 @@ export function aiFormatSpokenText(
   // 「〜じゃなくて…」の言い直し補正（例: "15日じゃなくて16日" -> "16日"）
   cleaned = cleaned.replace(/(?:[0-9１-９一二三四五六七八九十]+日|明日|今日|明後日)\s*(?:じゃなくて|ではなくて|ではなく|じゃなく)\s*/g, '');
 
-  const parsed = parseSpokenScheduleText(cleaned, baseDate, 'shared');
+  const parsed = parseSpokenScheduleText(cleaned, baseDate, activePartner);
 
   // 日付の人間向けラベル生成
   const [y, m, d] = parsed.date.split('-').map(Number);
