@@ -627,6 +627,21 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
               );
             })}
 
+            {/* 🔒 操作者限定カレンダー切り替えボタン（操作者だけが登録確認できる特別な予定のみを表示） */}
+            <button
+              type="button"
+              onClick={() => onChangeFilter(filterCategory === 'private' ? 'all' : 'private')}
+              className={`px-2.5 py-1 rounded-full text-[11px] font-black transition-all flex items-center gap-1 shrink-0 ${
+                filterCategory === 'private'
+                  ? 'bg-purple-600 text-white shadow-xs scale-[1.03] ring-2 ring-purple-300'
+                  : 'bg-purple-50 hover:bg-purple-100/80 text-purple-800 border border-purple-200'
+              }`}
+              title={`${currentPartner.name}だけが確認できる特別なシークレット予定のみを表示`}
+            >
+              <span>🔒</span>
+              <span>{currentPartner.name}限定</span>
+            </button>
+
             {/* カレンダー項目の追加・削除ボタン */}
             <button
               type="button"
