@@ -40,6 +40,7 @@ export interface ParsedVoiceSchedule {
   holidayWorkEndTime?: string;
   targetPartner?: PartnerId; // 「夫が」「妻が」など対象パートナー
   isTentative?: boolean;     // 仮・見込みフラグ（「予定」「かも」「仮」）
+  isPrivate?: boolean;       // 🔒 じぶん限定・シークレットフラグ（「秘密」「内緒」など）
 }
 
 /**
@@ -403,6 +404,7 @@ export function parseSpokenScheduleText(
   }
 
   const isTentative = /予定|見込み|かも|なりそう|仮|未定|はず/.test(rawText);
+  const isPrivate = /秘密|内緒|じぶん限定|自分限定|じぶんだけ|自分だけ|プライベート|サプライズ|シークレット/.test(rawText);
 
   return {
     date: dateStr,
@@ -422,6 +424,7 @@ export function parseSpokenScheduleText(
     holidayWorkEndTime,
     targetPartner,
     isTentative,
+    isPrivate,
   };
 }
 
