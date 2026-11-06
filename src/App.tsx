@@ -489,16 +489,39 @@ export const App: React.FC = () => {
       });
 
       const baseShifts = shouldClearAll ? {} : loaded.shifts || {};
-      const nextShifts = shouldApplyNursecal202611
+      const nextShiftsRaw = shouldApplyNursecal202611
         ? { ...baseShifts, ...createUploaded2026NovShifts('partnerA', nextStamps) }
         : baseShifts;
+
+      // 過去の二重登録バグで発生した「休日出勤と通常残業が両方正の値で重複しているシフト」を自動検出して修復
+      let shiftsRepaired = false;
+      const nextShifts = { ...nextShiftsRaw };
+      for (const [k, s] of Object.entries(nextShifts)) {
+        if (!s || s.deletedAt) continue;
+        const otMin = getShiftOvertimeMinutes(s);
+        const hwMin = getShiftHolidayWorkMinutes(s);
+        if (hwMin > 0 && otMin > 0) {
+          // 休出フラグまたは同額重複の場合は休出として残業を0にリセット
+          nextShifts[k] = {
+            ...s,
+            isHolidayWork: true,
+            overtimeMinutes: 0,
+            overtimeHours: 0,
+            overtimeStartTime: undefined,
+            overtimeEndTime: undefined,
+            updatedAt: new Date().toISOString(),
+          };
+          shiftsRepaired = true;
+        }
+      }
 
       const nowIso = new Date().toISOString();
       const hasAnyPresetChange =
         shouldApplyHusband12Presets ||
         shouldApplyNursecal202611 ||
         shouldApplySayaPresets ||
-        hasRenamedToYuuto;
+        hasRenamedToYuuto ||
+        shiftsRepaired;
 
       const nextStore: CalendarDataStore = {
         ...loaded,
@@ -814,6 +837,28 @@ export const App: React.FC = () => {
         ? 'shift_hol_work'
         : '';
 
+      const isPatchHw = Boolean(
+        patch.isHolidayWork ||
+        (patch.holidayWorkMinutes !== undefined && patch.holidayWorkMinutes > 0) ||
+        (patch.holidayWorkHours !== undefined && patch.holidayWorkHours > 0)
+      );
+      const isPatchOt = Boolean(
+        (patch.overtimeMinutes !== undefined && patch.overtimeMinutes > 0) ||
+        (patch.overtimeHours !== undefined && patch.overtimeHours > 0)
+      );
+
+      const cleanPatch: Partial<ShiftEntry> = { ...patch };
+      if (isPatchHw && patch.overtimeMinutes === undefined) {
+        cleanPatch.overtimeMinutes = 0;
+        cleanPatch.overtimeHours = 0;
+        cleanPatch.overtimeStartTime = undefined;
+        cleanPatch.overtimeEndTime = undefined;
+      } else if (isPatchOt && patch.holidayWorkMinutes === undefined) {
+        cleanPatch.isHolidayWork = false;
+        cleanPatch.holidayWorkMinutes = 0;
+        cleanPatch.holidayWorkHours = 0;
+      }
+
       const nextShift: ShiftEntry = {
         ...(activeExisting || {
           id: shiftId,
@@ -823,7 +868,7 @@ export const App: React.FC = () => {
           createdBy: activePartner,
           createdAt: nowIso,
         }),
-        ...patch,
+        ...cleanPatch,
         id: shiftId,
         date: dateStr,
         partnerId,
@@ -1182,9 +1227,16 @@ export const App: React.FC = () => {
 
       for (const s of Object.values(store.shifts)) {
         if (s.deletedAt || s.partnerId !== pid || !s.date.startsWith(prefix)) continue;
-        const otMin = getShiftOvertimeMinutes(s);
+        let otMin = getShiftOvertimeMinutes(s);
         const hwMin = getShiftHolidayWorkMinutes(s);
         const hasSub = Boolean(s.subCustomLabel || s.subStampId || s.stampId === 'shift_part');
+
+        // 万一過去のデータで休出と残業の両方が保存されている場合、休出を優先して残業の重複二重カウントを防止
+        if (hwMin > 0 && otMin > 0) {
+          if (s.isHolidayWork || s.stampId === 'shift_hol_work' || otMin === hwMin) {
+            otMin = 0;
+          }
+        }
 
         if (otMin > 0) overtimeMinutes += otMin;
         if (hwMin > 0) holidayWorkMinutes += hwMin;
