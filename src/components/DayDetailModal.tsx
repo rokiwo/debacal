@@ -29,6 +29,7 @@ import {
   DEFAULT_CATEGORIES,
   EVENT_PATTERN_CATEGORIES,
   formatMinutesShort,
+  formatMinutesToJa,
   getJapaneseHoliday,
   getShiftHolidayWorkMinutes,
   getShiftOvertimeMinutes,
@@ -120,6 +121,198 @@ export const DayDetailModal: React.FC<DayDetailModalProps> = ({
   const [endTime, setEndTime] = useState('11:00');
   const [memo, setMemo] = useState('');
   const [eventBadges, setEventBadges] = useState<string[]>([]);
+
+  // ⏱️ 残業・休日出勤の直接入力用ステート
+  const [editingOtPartner, setEditingOtPartner] = useState<PartnerId | null>(null);
+  const [otInputMinutes, setOtInputMinutes] = useState<string>('');
+  const [isOtHolidayWork, setIsOtHolidayWork] = useState<boolean>(false);
+
+  // 残業入力パネルを開く処理
+  const handleOpenOvertimeEditor = (partnerId: PartnerId) => {
+    const shift = partnerId === 'partnerA' ? store.shifts[`${dateStr}_partnerA`] : store.shifts[`${dateStr}_partnerB`];
+    const curOt = getShiftOvertimeMinutes(shift);
+    const curHw = getShiftHolidayWorkMinutes(shift);
+    const isHw = Boolean(shift?.isHolidayWork || curHw > 0);
+    setIsOtHolidayWork(isHw);
+    setOtInputMinutes(String(isHw ? curHw : curOt || 30));
+    setEditingOtPartner(partnerId);
+  };
+
+  // 残業・休日出勤の保存
+  const handleSaveOvertime = (targetPartner: PartnerId, minutes: number, isHw: boolean) => {
+    if (!onUpdateShiftDetails) return;
+    const todayStr = new Date().toISOString().split('T')[0];
+    const isFuture = dateStr > todayStr;
+    const finalTentative = isFuture ? true : false;
+
+    if (minutes === 0) {
+      onUpdateShiftDetails(dateStr, targetPartner, {
+        overtimeMinutes: 0,
+        overtimeHours: 0,
+        isHolidayWork: false,
+        holidayWorkMinutes: 0,
+        holidayWorkHours: 0,
+        isTentativeOvertime: false,
+        isTentativeHolidayWork: false,
+        overtimeStatus: 'confirmed',
+        holidayWorkStatus: 'confirmed',
+      });
+    } else if (isHw) {
+      onUpdateShiftDetails(dateStr, targetPartner, {
+        isHolidayWork: true,
+        holidayWorkMinutes: minutes,
+        holidayWorkHours: Math.round((minutes / 60) * 10) / 10,
+        overtimeMinutes: 0,
+        overtimeHours: 0,
+        isTentativeHolidayWork: finalTentative,
+        isTentativeOvertime: false,
+        holidayWorkStatus: finalTentative ? 'tentative' : 'confirmed',
+        overtimeStatus: 'confirmed',
+      });
+    } else {
+      onUpdateShiftDetails(dateStr, targetPartner, {
+        isHolidayWork: false,
+        holidayWorkMinutes: 0,
+        holidayWorkHours: 0,
+        overtimeMinutes: minutes,
+        overtimeHours: Math.round((minutes / 60) * 10) / 10,
+        isTentativeOvertime: finalTentative,
+        isTentativeHolidayWork: false,
+        overtimeStatus: finalTentative ? 'tentative' : 'confirmed',
+        holidayWorkStatus: 'confirmed',
+      });
+    }
+    setEditingOtPartner(null);
+  };
+
+  const renderOvertimeEditor = (targetPartner: PartnerId) => {
+    const targetPartnerInfo = targetPartner === 'partnerB' ? partnerB : partnerA;
+    const isFuture = dateStr > new Date().toISOString().split('T')[0];
+
+    return (
+      <div className="mt-2.5 bg-linear-to-r from-[#FFF4EA] to-[#FFEBEF] p-3 rounded-2xl border-2 border-[#FFD0BF] space-y-2.5 animate-pop text-xs">
+        <div className="flex items-center justify-between">
+          <span className="font-black text-[#9C3D1C] flex items-center gap-1">
+            <Clock className="w-4 h-4 text-rose-500" />
+            <span>{targetPartnerInfo.avatar} {targetPartnerInfo.name}の残業・休日出勤を入力</span>
+          </span>
+          <button
+            type="button"
+            onClick={() => setEditingOtPartner(null)}
+            className="p-1 text-stone-400 hover:text-stone-700 font-bold"
+          >
+            ✕
+          </button>
+        </div>
+
+        {isFuture && (
+          <div className="text-[10px] text-amber-800 bg-amber-50 px-2 py-1 rounded-lg border border-amber-200 font-bold">
+            📅 明日以降の予定のため固定で「仮予定（見込み）」として記録されます🐾（当日に確定できます）
+          </div>
+        )}
+
+        {/* 分数直接入力 ＆ 保存ボタン */}
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1">
+            <input
+              type="number"
+              min="0"
+              step="1"
+              placeholder="分数を入力（例: 35）"
+              value={otInputMinutes}
+              onChange={(e) => setOtInputMinutes(e.target.value)}
+              className="w-full pl-3 pr-8 py-2 text-base font-black text-rose-600 bg-white rounded-xl border-2 border-rose-300 focus:outline-rose-500 shadow-inner"
+            />
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 font-black text-stone-400 text-xs pointer-events-none">
+              分
+            </span>
+          </div>
+          <button
+            type="button"
+            disabled={otInputMinutes === '' || Number(otInputMinutes) < 0}
+            onClick={() => handleSaveOvertime(targetPartner, Number(otInputMinutes), isOtHolidayWork)}
+            className="px-4 py-2.5 rounded-xl bg-linear-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 disabled:opacity-40 text-white font-black text-xs shadow-md active:scale-95 transition-all shrink-0"
+          >
+            {Number(otInputMinutes) === 0 ? '0分で保存' : 'この分数で保存 ✨'}
+          </button>
+        </div>
+
+        {otInputMinutes !== '' && Number(otInputMinutes) > 0 && (
+          <div className="text-[11px] font-black text-rose-600 pl-1">
+            ＝ {formatMinutesToJa(Number(otInputMinutes))}
+            {isOtHolidayWork ? '（💼休日出勤）' : '（⏱️通常残業）'}
+          </div>
+        )}
+
+        {/* クイックワンタップボタン群 */}
+        <div className="space-y-1 pt-1 border-t border-rose-200/60">
+          <div className="flex flex-wrap items-center gap-1">
+            <span className="text-[10px] text-stone-400 font-bold shrink-0">クイック選択:</span>
+            {[15, 30, 35, 45, 60, 90, 120, 150, 180].map((min) => (
+              <button
+                key={min}
+                type="button"
+                onClick={() => {
+                  setOtInputMinutes(String(min));
+                  setIsOtHolidayWork(false);
+                }}
+                className={`px-2 py-1 rounded-lg border text-[10px] font-bold active:scale-95 transition-all ${
+                  otInputMinutes === String(min) && !isOtHolidayWork
+                    ? 'bg-rose-500 text-white border-rose-500 font-black shadow-2xs'
+                    : 'bg-white hover:bg-stone-50 text-stone-700 border-stone-200'
+                }`}
+              >
+                +{min}分
+              </button>
+            ))}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-1.5 pt-1">
+            <button
+              type="button"
+              onClick={() => {
+                setOtInputMinutes('240');
+                setIsOtHolidayWork(true);
+              }}
+              className={`px-2.5 py-1 rounded-lg font-black text-[10px] border active:scale-95 transition-all ${
+                isOtHolidayWork && otInputMinutes === '240'
+                  ? 'bg-amber-600 text-white border-amber-600 shadow-2xs'
+                  : 'bg-amber-50 hover:bg-amber-100 text-amber-900 border-amber-300'
+              }`}
+            >
+              💼 休日出勤 4時間(240分)
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setOtInputMinutes('480');
+                setIsOtHolidayWork(true);
+              }}
+              className={`px-2.5 py-1 rounded-lg font-black text-[10px] border active:scale-95 transition-all ${
+                isOtHolidayWork && otInputMinutes === '480'
+                  ? 'bg-amber-600 text-white border-amber-600 shadow-2xs'
+                  : 'bg-amber-50 hover:bg-amber-100 text-amber-900 border-amber-300'
+              }`}
+            >
+              💼 休日出勤 8時間(480分)
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setOtInputMinutes('0');
+                setIsOtHolidayWork(false);
+              }}
+              className="px-2.5 py-1 rounded-lg font-bold text-[10px] bg-stone-100 hover:bg-stone-200 text-stone-600 border border-stone-200 active:scale-95 ml-auto"
+            >
+              ✕ 0分（残業なし）
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   useEffect(() => {
     if (!editingEventId) {
@@ -972,6 +1165,20 @@ export const DayDetailModal: React.FC<DayDetailModalProps> = ({
                     <span>{partnerA.avatar}</span>
                     <span>{partnerA.name}</span>
                   </span>
+                  {onUpdateShiftDetails && (
+                    <button
+                      type="button"
+                      onClick={() => handleOpenOvertimeEditor('partnerA')}
+                      className={`px-2 py-0.5 rounded-lg font-bold text-[10px] border flex items-center gap-1 active:scale-95 transition-all ${
+                        editingOtPartner === 'partnerA'
+                          ? 'bg-rose-500 text-white border-rose-500'
+                          : 'bg-white hover:bg-rose-50 text-rose-600 border-rose-200 shadow-2xs'
+                      }`}
+                    >
+                      <Clock className="w-3 h-3" />
+                      <span>残業を入力</span>
+                    </button>
+                  )}
                 </div>
                 <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
                   {stampA ? (
@@ -1037,6 +1244,7 @@ export const DayDetailModal: React.FC<DayDetailModalProps> = ({
                     );
                   })()}
                 </div>
+                {editingOtPartner === 'partnerA' && renderOvertimeEditor('partnerA')}
                 {shiftA && renderAuditAndReadStatus(shiftA.createdBy, shiftA.createdAt, shiftA.updatedAt)}
               </div>
 
@@ -1047,6 +1255,20 @@ export const DayDetailModal: React.FC<DayDetailModalProps> = ({
                     <span>{partnerB.avatar}</span>
                     <span>{partnerB.name}</span>
                   </span>
+                  {onUpdateShiftDetails && (
+                    <button
+                      type="button"
+                      onClick={() => handleOpenOvertimeEditor('partnerB')}
+                      className={`px-2 py-0.5 rounded-lg font-bold text-[10px] border flex items-center gap-1 active:scale-95 transition-all ${
+                        editingOtPartner === 'partnerB'
+                          ? 'bg-rose-500 text-white border-rose-500'
+                          : 'bg-white hover:bg-rose-50 text-rose-600 border-rose-200 shadow-2xs'
+                      }`}
+                    >
+                      <Clock className="w-3 h-3" />
+                      <span>残業を入力</span>
+                    </button>
+                  )}
                 </div>
                 <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
                   {stampB ? (
@@ -1112,9 +1334,24 @@ export const DayDetailModal: React.FC<DayDetailModalProps> = ({
                     );
                   })()}
                 </div>
+                {editingOtPartner === 'partnerB' && renderOvertimeEditor('partnerB')}
                 {shiftB && renderAuditAndReadStatus(shiftB.createdBy, shiftB.createdAt, shiftB.updatedAt)}
               </div>
             </div>
+
+            {/* ⏱️ 大きな残業入力クイックアクションボタン */}
+            {onUpdateShiftDetails && editingOtPartner === null && (
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={() => handleOpenOvertimeEditor(activePartner)}
+                  className="w-full py-2.5 px-3 rounded-xl bg-linear-to-r from-rose-500 via-pink-500 to-rose-500 hover:from-rose-600 hover:to-pink-600 active:scale-95 text-white font-black text-xs shadow-md flex items-center justify-center gap-1.5 transition-all"
+                >
+                  <Clock className="w-4 h-4 text-amber-300" />
+                  <span>⏱️ {currentPartnerInfo.name}の残業・休日出勤を入力する</span>
+                </button>
+              </div>
+            )}
 
             <div className="text-[10px] text-stone-400 font-bold pt-0.5">
               💡 シフト・夜勤バイト・残業の登録・変更は画面下の「シフト入力」から行えます
