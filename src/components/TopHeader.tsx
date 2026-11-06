@@ -163,8 +163,8 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
   return (
     <header className="sticky top-0 z-30 bg-[#FFFBF7]/95 backdrop-blur-md border-b border-[#FFE5EC] shadow-xs">
       <div className="max-w-5xl mx-auto px-2 sm:px-4 pt-1.5 pb-1.5 space-y-1.5">
-        {/* 1段目：年月ナビゲーション ＆ 操作パートナー切替（🐻ゆうと ⇔ 🐰さや） */}
-        <div className="flex items-center justify-between gap-1.5 sm:gap-2">
+        {/* 1段目：年月ナビゲーション ＆ [写真] [人(パートナー切替)] [更新] [設定]（全て綺麗に上段に収まる配置） */}
+        <div className="flex items-center justify-between gap-1 sm:gap-2">
           {/* 左側：年月切替 ＆ 今日 */}
           <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
             {/* 年月ピル */}
@@ -200,33 +200,33 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
             <button
               type="button"
               onClick={onToday}
-              className="px-2 py-1 rounded-xl bg-white border border-stone-200 text-stone-600 text-xs font-extrabold shadow-2xs hover:bg-stone-50 active:scale-95 shrink-0"
+              className="px-1.5 sm:px-2 py-1 rounded-xl bg-white border border-stone-200 text-stone-600 text-[11px] sm:text-xs font-extrabold shadow-2xs hover:bg-stone-50 active:scale-95 shrink-0"
             >
               今日
             </button>
           </div>
 
-          {/* 右側：📸 写真保存 ＆ 操作中パートナー切替 */}
-          <div className="flex items-center gap-1.5 shrink-0">
+          {/* 右側：📸 写真 ＆ 🐻🐰 人 ＆ 🔄 更新 ＆ ⚙️ 設定（写真と人のマークを程よく左に寄せ、全て綺麗に上段に横並び） */}
+          <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
             {/* 📸 写真（シフト表・カレンダー画像保存・共有） */}
             {onOpenShiftExport && (
               <button
                 type="button"
                 onClick={onOpenShiftExport}
-                className="px-2 py-1 rounded-xl bg-[#E2F9FC] hover:bg-[#56CFE1] text-[#126875] hover:text-white border border-[#A9E9F2] text-xs font-black flex items-center gap-1 active:scale-95 transition-all shadow-2xs"
+                className="px-1.5 sm:px-2 py-1 rounded-xl bg-[#E2F9FC] hover:bg-[#56CFE1] text-[#126875] hover:text-white border border-[#A9E9F2] text-[11px] sm:text-xs font-black flex items-center gap-0.5 sm:gap-1 active:scale-95 transition-all shadow-2xs shrink-0"
                 title="シフト表・カレンダーを写真(画像)として保存・共有"
               >
-                <Camera className="w-3.5 h-3.5 text-[#0284C7]" />
-                <span className="text-xs">写真</span>
+                <Camera className="w-3.5 h-3.5 text-[#0284C7] shrink-0" />
+                <span className="text-[11px] sm:text-xs">写真</span>
               </button>
             )}
 
-            {/* 操作中パートナー切替（ご要望：文字をなくしアイコンのみで超コンパクトに！押したら入力が切り替わる） */}
+            {/* 🐻🐰 操作中パートナー切替（人マーク） */}
             <div className="flex items-center bg-stone-100 p-0.5 rounded-xl border border-stone-200 shadow-2xs shrink-0">
               <button
                 type="button"
                 onClick={() => onToggleActivePartner('partnerA')}
-                className={`w-7 h-7 sm:w-8 sm:h-7.5 rounded-lg text-sm sm:text-base font-black transition-all flex items-center justify-center leading-none ${
+                className={`w-6.5 h-6.5 sm:w-7.5 sm:h-7 rounded-lg text-xs sm:text-sm font-black transition-all flex items-center justify-center leading-none ${
                   activePartner === 'partnerA'
                     ? 'bg-[#56CFE1] text-white shadow-xs scale-105'
                     : 'text-stone-400 hover:text-stone-700 hover:bg-stone-200/50 opacity-60'
@@ -238,7 +238,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
               <button
                 type="button"
                 onClick={() => onToggleActivePartner('partnerB')}
-                className={`w-7 h-7 sm:w-8 sm:h-7.5 rounded-lg text-sm sm:text-base font-black transition-all flex items-center justify-center leading-none ${
+                className={`w-6.5 h-6.5 sm:w-7.5 sm:h-7 rounded-lg text-xs sm:text-sm font-black transition-all flex items-center justify-center leading-none ${
                   activePartner === 'partnerB'
                     ? 'bg-[#B388EB] text-white shadow-xs scale-105'
                     : 'text-stone-400 hover:text-stone-700 hover:bg-stone-200/50 opacity-60'
@@ -248,13 +248,36 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
                 <span>{partnerB.avatar}</span>
               </button>
             </div>
+
+            {/* 🔄 更新（クラウド同期マーク） */}
+            {syncEnabled && (
+              <button
+                type="button"
+                onClick={onTriggerSync}
+                disabled={isSyncing}
+                className="p-1 sm:p-1.5 rounded-xl bg-white border border-stone-200 text-stone-600 active:scale-90 shadow-2xs hover:bg-stone-50 shrink-0"
+                title="クラウド同期"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-[#FF8FAB]' : 'text-stone-600'}`} />
+              </button>
+            )}
+
+            {/* ⚙️ 設定（歯車マーク） */}
+            <button
+              type="button"
+              onClick={onOpenSettings}
+              className="p-1 sm:p-1.5 rounded-xl bg-white border border-stone-200 text-stone-700 active:scale-90 shadow-2xs hover:bg-stone-50 shrink-0"
+              title="設定・クラウド同期・iCal連携"
+            >
+              <Settings className="w-3.5 h-3.5 text-[#FF8FAB]" />
+            </button>
           </div>
         </div>
 
-        {/* 2段目：ふたりの集計（残業時間・休一致）＆ アプリツール（写真・同期・設定） */}
-        <div className="flex items-center justify-between gap-1 sm:gap-2">
-          {/* 左側：⏱️残業時間 ＆ ✨休一致（広々と配置され、右側はツールアイコンのみなので絶対に被らない！） */}
-          <div className="flex items-center gap-1 sm:gap-1.5 min-w-0">
+        {/* 2段目：ふたりの集計（残業時間・休一致・予定確認）※上段に更新・設定が移ったため広々と重ならずに表示 */}
+        <div className="flex items-center justify-between gap-1 sm:gap-2 overflow-x-auto no-scrollbar py-0.5">
+          {/* 左側：⏱️残業時間 ＆ ✨休一致 ＆ 💌パートナー予定 ＆ ✅既読 */}
+          <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
             {/* ⏱️ 今月の残業時間バッジ */}
             {/* ⏱️ 今月の残業時間バッジ（操作中のパートナーのみ表示） */}
             <div className="relative shrink-0">
@@ -498,44 +521,20 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
             )}
           </div>
 
-          {/* 右側：アプリツール群（未読表示は撤去、写真・同期・合言葉・設定のみ配置） */}
-          <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
-            {/* 🔑 合言葉で共有ボタン（未共有の場合に目立つバッジボタンとして表示） */}
-            {!isShared && onOpenSharedKeywordModal && (
+          {/* 右側：🔑 合言葉で共有ボタン（未共有の場合にのみ表示） */}
+          {!isShared && onOpenSharedKeywordModal && (
+            <div className="flex items-center gap-1 shrink-0 pl-1">
               <button
                 type="button"
                 onClick={onOpenSharedKeywordModal}
-                className="px-2 py-1 rounded-xl bg-gradient-to-r from-[#FF8FAB] to-[#B388EB] text-white text-[10px] sm:text-xs font-black shadow-xs flex items-center gap-1 active:scale-95 animate-pulse"
+                className="px-2 py-1 rounded-xl bg-gradient-to-r from-[#FF8FAB] to-[#B388EB] text-white text-[10px] sm:text-xs font-black shadow-xs flex items-center gap-1 active:scale-95 animate-pulse shrink-0"
                 title="合言葉を入力してカレンダーを共有"
               >
                 <span>🔑</span>
                 <span>共有</span>
               </button>
-            )}
-
-            {/* 🔄 同期中アイコンまたは手動同期 */}
-            {syncEnabled && (
-              <button
-                type="button"
-                onClick={onTriggerSync}
-                disabled={isSyncing}
-                className="p-1 sm:p-1.5 rounded-xl bg-white border border-stone-200 text-stone-600 active:scale-90 shadow-2xs hover:bg-stone-50"
-                title="クラウド同期"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-[#FF8FAB]' : ''}`} />
-              </button>
-            )}
-
-            {/* ⚙️ 設定 */}
-            <button
-              type="button"
-              onClick={onOpenSettings}
-              className="p-1 sm:p-1.5 rounded-xl bg-white border border-stone-200 text-stone-700 active:scale-90 shadow-2xs hover:bg-stone-50"
-              title="設定・クラウド同期・iCal連携"
-            >
-              <Settings className="w-3.5 h-3.5 text-[#FF8FAB]" />
-            </button>
-          </div>
+            </div>
+          )}
         </div>
 
         {/* 年月ジャンプピッカー */}
