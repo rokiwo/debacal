@@ -63,6 +63,12 @@ export interface ShiftEntry {
   holidayWorkHours?: number;     // 従来の時間小数（後方互換用：例 4.0）
   isHolidayWork?: boolean;       // 休日出勤フラグ
 
+  // ⏱️ 残業・休日出勤の「仮予定（見込み）」ステータス
+  // 'tentative' = 仮予定（未確定。終業時等に確認して確定させる）
+  // 'confirmed' = 実績確定（未指定時はデフォルトで確定扱い）
+  overtimeStatus?: 'tentative' | 'confirmed';
+  holidayWorkStatus?: 'tentative' | 'confirmed';
+
   memo?: string;
   createdBy: PartnerId;
   createdAt: string;      // ISO 8601
