@@ -320,8 +320,19 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
                           <div className="flex flex-wrap gap-1 pt-0.5">
                             {sum.entries.map((en) => {
                               const dayN = Number(en.date.split('-')[2]);
-                              const otMin = getShiftOvertimeMinutes(en);
                               const hwMin = getShiftHolidayWorkMinutes(en);
+                              let otMin = getShiftOvertimeMinutes(en);
+                              if (hwMin > 0 && otMin > 0 && (en.isHolidayWork || en.stampId === 'shift_hol_work' || otMin === hwMin)) {
+                                otMin = 0; // 重複時は休出優先
+                              }
+
+                              const labelParts: string[] = [];
+                              if (hwMin > 0) labelParts.push(`休出${hwMin}分`);
+                              if (otMin > 0) labelParts.push(`+${otMin}分`);
+                              if (labelParts.length === 0 && (en.subCustomLabel || en.subStampId || en.stampId === 'shift_part')) {
+                                labelParts.push('バイト');
+                              }
+
                               return (
                                 <button
                                   key={en.id}
@@ -332,13 +343,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
                                   }}
                                   className="px-1.5 py-0.5 rounded-lg bg-white border border-stone-200 text-[10px] font-bold text-stone-700 hover:border-[#FF8FAB]"
                                 >
-                                  {dayN}日(
-                                  {hwMin > 0
-                                    ? `休出${hwMin}分`
-                                    : otMin > 0
-                                    ? `+${otMin}分`
-                                    : 'バイト'}
-                                  )
+                                  {dayN}日({labelParts.join(' / ') || '予定'})
                                 </button>
                               );
                             })}
