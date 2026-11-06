@@ -25,6 +25,7 @@ import {
   formatMinutesToJa,
   getShiftHolidayWorkMinutes,
   getShiftOvertimeMinutes,
+  isShiftExtraTentative,
 } from '../utils/presets';
 
 export interface PartnerOvertimeSummary {
@@ -38,6 +39,8 @@ export interface PartnerOvertimeSummary {
   holidayWorkFormatted: string;   // 「4時間」
   totalExtraFormatted: string;    // 「4時間35分」
   partTimeCount: number;
+  tentativeExtraMinutes?: number; // 仮予定（未確定）の合計分数
+  tentativeCount?: number;        // 未確定の件数
   entries: ShiftEntry[];
 }
 
@@ -316,6 +319,15 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
                             <span>🏪 バイト: {activeSum.partTimeCount}回</span>
                           </div>
 
+                          {Boolean(activeSum.tentativeCount && activeSum.tentativeCount > 0) && (
+                            <div className="px-2 py-1 rounded-xl bg-amber-50 border border-amber-200 text-[10px] text-amber-800 font-bold flex items-center justify-between">
+                              <span>📌 未確定の仮予定</span>
+                              <span className="font-black text-rose-600">
+                                {activeSum.tentativeCount}件（{activeSum.tentativeExtraMinutes || 0}分）
+                              </span>
+                            </div>
+                          )}
+
                           {activeSum.entries.length > 0 && (
                             <div className="flex flex-wrap gap-1 pt-1 border-t border-stone-100">
                               {activeSum.entries.map((en) => {
@@ -326,6 +338,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
                                   otMin = 0; // 重複時は休出優先
                                 }
 
+                                const isTentative = isShiftExtraTentative(en);
                                 const labelParts: string[] = [];
                                 if (hwMin > 0) labelParts.push(`休出${hwMin}分`);
                                 if (otMin > 0) labelParts.push(`+${otMin}分`);
@@ -341,9 +354,13 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
                                       onSelectDate(en.date);
                                       setShowOvertimePopup(false);
                                     }}
-                                    className="px-1.5 py-0.5 rounded-lg bg-white border border-stone-200 text-[10px] font-bold text-stone-700 hover:border-[#FF8FAB]"
+                                    className={`px-1.5 py-0.5 rounded-lg border text-[10px] font-bold transition-all ${
+                                      isTentative
+                                        ? 'bg-amber-100/90 border-amber-300 text-amber-900 shadow-2xs hover:bg-amber-200'
+                                        : 'bg-white border-stone-200 text-stone-700 hover:border-[#FF8FAB]'
+                                    }`}
                                   >
-                                    {dayN}日({labelParts.join(' / ') || '予定'})
+                                    {isTentative && '📌仮 '}{dayN}日({labelParts.join(' / ') || '予定'})
                                   </button>
                                 );
                               })}
