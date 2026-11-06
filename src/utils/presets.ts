@@ -855,6 +855,30 @@ export function getShiftHolidayWorkMinutes(shift?: ShiftEntry): number {
 }
 
 /**
+ * 残業が「仮予定（未確定）」かどうか
+ */
+export function isShiftOvertimeTentative(shift?: ShiftEntry): boolean {
+  return shift?.overtimeStatus === 'tentative';
+}
+
+/**
+ * 休日出勤が「仮予定（未確定）」かどうか
+ */
+export function isShiftHolidayWorkTentative(shift?: ShiftEntry): boolean {
+  return shift?.holidayWorkStatus === 'tentative';
+}
+
+/**
+ * 残業または休日出勤に仮予定（未確定）が含まれるかどうか
+ */
+export function isShiftExtraTentative(shift?: ShiftEntry): boolean {
+  return (
+    (getShiftOvertimeMinutes(shift) > 0 && isShiftOvertimeTentative(shift)) ||
+    (getShiftHolidayWorkMinutes(shift) > 0 && isShiftHolidayWorkTentative(shift))
+  );
+}
+
+/**
  * 分数を「◯時間◯分」形式の日本語文字列に変換（例: 35 -> "35分", 90 -> "1時間30分", 120 -> "2時間"）
  */
 export function formatMinutesToJa(minutes: number): string {
