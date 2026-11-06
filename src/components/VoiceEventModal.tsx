@@ -128,6 +128,10 @@ export const VoiceEventModal: React.FC<VoiceEventModalProps> = ({
   const [holidayWorkMinutes, setHolidayWorkMinutes] = useState<number | null>(null);
   const [holidayWorkHours, setHolidayWorkHours] = useState<number | null>(null);
   const [applyToShift, setApplyToShift] = useState<boolean>(true);
+  const [isTentativeOvertime, setIsTentativeOvertime] = useState<boolean>(() => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    return selectedDate > todayStr; // 未来日ならデフォルト仮予定
+  });
 
   // 詳細設定アコーディオン
   const [showDetailFields, setShowDetailFields] = useState(false);
@@ -218,6 +222,14 @@ export const VoiceEventModal: React.FC<VoiceEventModalProps> = ({
         setOvertimeEndTime(null);
         setHolidayWorkMinutes(null);
         setHolidayWorkHours(null);
+      }
+      if (/かも|予定|見込み|仮/.test(fullText)) {
+        setIsTentativeOvertime(true);
+      } else if (result.date) {
+        const todayStr = new Date().toISOString().split('T')[0];
+        if (result.date > todayStr) {
+          setIsTentativeOvertime(true);
+        }
       }
       if (result.parsed.targetPartner) {
         setTargetPartner(result.parsed.targetPartner);
@@ -438,6 +450,7 @@ export const VoiceEventModal: React.FC<VoiceEventModalProps> = ({
           isHolidayWork: true,
           holidayWorkMinutes: hwM,
           holidayWorkHours: Math.round((hwM / 60) * 10) / 10,
+          holidayWorkStatus: isTentativeOvertime ? 'tentative' : 'confirmed',
           overtimeMinutes: 0,
           overtimeHours: 0,
           overtimeStartTime: undefined,
@@ -451,6 +464,7 @@ export const VoiceEventModal: React.FC<VoiceEventModalProps> = ({
           holidayWorkHours: 0,
           overtimeMinutes: otM,
           overtimeHours: Math.round((otM / 60) * 10) / 10,
+          overtimeStatus: isTentativeOvertime ? 'tentative' : 'confirmed',
           overtimeStartTime: overtimeStartTime ?? undefined,
           overtimeEndTime: overtimeEndTime ?? undefined,
         });
@@ -978,6 +992,54 @@ export const VoiceEventModal: React.FC<VoiceEventModalProps> = ({
             )}
           </div>
 
+          {/* 残業・休日出勤がある場合の「仮予定 / 実績確定」切り替えスイッチ */}
+          {(overtimeMinutes !== null || holidayWorkMinutes !== null) && (
+            <div className="p-2.5 rounded-2xl bg-[#FFFBF7] border border-[#FFE28A] space-y-1.5 animate-pop">
+              <div className="flex items-center justify-between text-[11px] font-extrabold text-stone-700">
+                <span className="flex items-center gap-1">
+                  <Timer className="w-3.5 h-3.5 text-[#D49600]" />
+                  <span>{holidayWorkMinutes ? '休日出勤' : '残業'}のステータス:</span>
+                </span>
+                <span className={`px-2 py-0.5 rounded-full font-black text-[10px] ${
+                  isTentativeOvertime
+                    ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                    : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                }`}>
+                  {isTentativeOvertime ? '📌 仮の予定（終業後に確定）' : '✅ 実績確定'}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-1.5 p-0.5 bg-stone-100 rounded-xl">
+                <button
+                  type="button"
+                  onClick={() => setIsTentativeOvertime(true)}
+                  className={`py-1.5 px-2 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-1 ${
+                    isTentativeOvertime
+                      ? 'bg-white text-amber-800 shadow-xs'
+                      : 'text-stone-500 hover:text-stone-700'
+                  }`}
+                >
+                  <span>📌 仮の予定（見込み）</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsTentativeOvertime(false)}
+                  className={`py-1.5 px-2 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-1 ${
+                    !isTentativeOvertime
+                      ? 'bg-white text-emerald-700 shadow-xs'
+                      : 'text-stone-500 hover:text-stone-700'
+                  }`}
+                >
+                  <span>✅ 実績（確定）</span>
+                </button>
+              </div>
+              <p className="text-[10px] text-stone-400 font-bold">
+                {isTentativeOvertime
+                  ? '※「仮」としてカレンダーに表示され、当日終業時に確認して確定できます✨'
+                  : '※今月の残業集計に確定済みとして反映されます。'}
+              </p>
+            </div>
+          )}
+
           {/* 4. アクションボタン（カレンダー登録 ＆ LINEにも同時送信） */}
           <div className="space-y-2 pt-1">
             <button
@@ -995,7 +1057,9 @@ export const VoiceEventModal: React.FC<VoiceEventModalProps> = ({
               <Check className="w-4 h-4" />
               <span>
                 {overtimeMinutes !== null || overtimeHours !== null
-                  ? `⏱️ ${currentPartner.name}の残業(+${overtimeMinutes ?? Math.round((overtimeHours || 0) * 60)}分)を登録`
+                  ? `⏱️ ${currentPartner.name}の残業(+${overtimeMinutes ?? Math.round((overtimeHours || 0) * 60)}分${isTentativeOvertime ? '・仮' : ''})を登録`
+                  : holidayWorkMinutes !== null || holidayWorkHours !== null
+                  ? `💼 ${currentPartner.name}の休日出勤(${holidayWorkMinutes ?? Math.round((holidayWorkHours || 0) * 60)}分${isTentativeOvertime ? '・仮' : ''})を登録`
                   : 'この内容でカレンダーに登録する✨'}
               </span>
             </button>
