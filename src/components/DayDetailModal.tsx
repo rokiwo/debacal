@@ -15,6 +15,7 @@ import {
   Square,
   ExternalLink,
   Stamp,
+  Lock,
 } from 'lucide-react';
 import {
   CalendarCategoryId,
@@ -112,6 +113,7 @@ export const DayDetailModal: React.FC<DayDetailModalProps> = ({
     activePartner === 'partnerB' ? 'partnerB' : 'shared'
   );
   const [isTask, setIsTask] = useState(false);
+  const [isPrivate, setIsPrivate] = useState<boolean>(false); // 🔒 操作者限定プライベートカレンダー
   const [notifyTarget, setNotifyTarget] = useState<NotifyTarget>(activePartner);
   const [reminderMinutes, setReminderMinutes] = useState<number>(30);
   const [autoOpenGoogleCal, setAutoOpenGoogleCal] = useState<boolean>(false);
@@ -335,6 +337,8 @@ export const DayDetailModal: React.FC<DayDetailModalProps> = ({
   const partnerB = store.metadata?.partners?.partnerB || { name: 'さや', avatar: '🐰' };
   const currentPartnerInfo =
     activePartner === 'partnerB' ? partnerB : partnerA;
+  const otherPartnerInfo =
+    activePartner === 'partnerB' ? partnerA : partnerB;
 
   const categories =
     store.categories && store.categories.length > 0
@@ -362,7 +366,7 @@ export const DayDetailModal: React.FC<DayDetailModalProps> = ({
   const isBothHoliday = isHolidayShift(shiftA) && isHolidayShift(shiftB);
 
   const dayEvents = Object.values(store.events || {})
-    .filter((e): e is ScheduleEvent => Boolean(e && !e.deletedAt && e.date === dateStr))
+    .filter((e): e is ScheduleEvent => Boolean(e && !e.deletedAt && e.date === dateStr && (!e.privateFor || e.privateFor === activePartner)))
     .sort((a, b) => {
       if (a.isAllDay !== b.isAllDay) return a.isAllDay ? -1 : 1;
       return (a.startTime || '00:00').localeCompare(b.startTime || '00:00');
@@ -451,6 +455,7 @@ export const DayDetailModal: React.FC<DayDetailModalProps> = ({
     setEndTime('11:00');
     setMemo('');
     setEventBadges([]);
+    setIsPrivate(false);
     setShowEventForm(true);
   };
 
@@ -461,6 +466,7 @@ export const DayDetailModal: React.FC<DayDetailModalProps> = ({
     setCategoryId(ev.categoryId);
     const taskFlag = Boolean(ev.isTask);
     setIsTask(taskFlag);
+    setIsPrivate(Boolean(ev.privateFor));
     setFormTabMode(taskFlag ? 'task' : 'event');
     setNotifyTarget(
       ev.notifyTarget ||
@@ -489,6 +495,10 @@ export const DayDetailModal: React.FC<DayDetailModalProps> = ({
     const existing = editingEventId ? store.events[editingEventId] : undefined;
     const finalDate = (eventDate || dateStr).trim();
 
+    const effectivePrivateFor: PartnerId | undefined = isPrivate
+      ? (existing?.privateFor || activePartner)
+      : undefined;
+
     const newEvent: ScheduleEvent = {
       id: editingEventId || `ev_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
       date: finalDate,
@@ -502,9 +512,10 @@ export const DayDetailModal: React.FC<DayDetailModalProps> = ({
       supportBadges: eventBadges.length > 0 ? eventBadges : undefined,
       isTask,
       isCompleted: existing ? existing.isCompleted : false,
-      notifyTarget,
+      notifyTarget: effectivePrivateFor ? activePartner : notifyTarget,
       reminderMinutes,
       googleCalSynced: existing?.googleCalSynced || autoOpenGoogleCal,
+      privateFor: effectivePrivateFor,
       createdBy: existing ? existing.createdBy : activePartner,
       createdAt: existing ? existing.createdAt : nowIso,
       updatedAt: nowIso,
@@ -964,6 +975,50 @@ export const DayDetailModal: React.FC<DayDetailModalProps> = ({
                       )}
                     </div>
 
+                    {/* 🔒 操作者限定プライベートカレンダー設定（相手の画面・端末には一切表示しない特別な予定） */}
+                    <div className={`p-3 rounded-2xl border-2 transition-all ${
+                      isPrivate
+                        ? 'bg-gradient-to-r from-purple-100/90 to-indigo-100/90 border-purple-400 shadow-xs'
+                        : 'bg-purple-50/50 border-purple-200/70 hover:border-purple-300'
+                    }`}>
+                      <label className="flex items-center justify-between cursor-pointer gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
+                            isPrivate ? 'bg-purple-600 text-white' : 'bg-purple-100 text-purple-700'
+                          }`}>
+                            <Lock className="w-4 h-4" />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-xs font-black text-purple-900">
+                                🔒 {currentPartnerInfo.name}限定（相手の画面には非表示）
+                              </span>
+                              {isPrivate && (
+                                <span className="px-1.5 py-0.2 rounded-full bg-purple-600 text-white text-[9px] font-black">
+                                  シークレット有効
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[10px] text-purple-700 font-bold mt-0.5 leading-snug">
+                              ONにすると、{otherPartnerInfo.name}の画面・通知・カレンダーには一切表示されません（サプライズや自分専用の予定・ToDoに）
+                            </p>
+                          </div>
+                        </div>
+                        <input
+                          type="checkbox"
+                          checked={isPrivate}
+                          onChange={(e) => {
+                            const checked = e.target.checked;
+                            setIsPrivate(checked);
+                            if (checked) {
+                              setNotifyTarget(activePartner); // 相手には通知しない
+                            }
+                          }}
+                          className="w-5 h-5 rounded text-purple-600 focus:ring-purple-400 accent-purple-600 cursor-pointer shrink-0"
+                        />
+                      </label>
+                    </div>
+
                     <div>
                       <input
                         type="text"
@@ -1071,6 +1126,13 @@ export const DayDetailModal: React.FC<DayDetailModalProps> = ({
                               <Bell className="w-2.5 h-2.5 text-sky-600" />
                               <span>{notifyInfo.label}</span>
                             </span>
+
+                            {ev.privateFor && (
+                              <span className="px-2 py-0.5 rounded-full bg-purple-600 text-white text-[10px] font-black flex items-center gap-0.5 shadow-2xs">
+                                <Lock className="w-2.5 h-2.5 text-purple-200" />
+                                <span>🔒 じぶん限定</span>
+                              </span>
+                            )}
                           </div>
 
                           <p
