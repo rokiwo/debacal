@@ -73,6 +73,8 @@ export const PartnerEventsModal: React.FC<PartnerEventsModalProps> = ({
 
     for (const ev of Object.values(store.events || {})) {
       if (!ev || ev.deletedAt) continue;
+      // 🔒 操作者限定プライベート予定：相手の秘密予定は相手の予定一覧にも絶対に表示しない
+      if (ev.privateFor && ev.privateFor !== activePartner) continue;
       // 相手が作成した予定、もしくは相手専用カテゴリの予定
       if (ev.createdBy === otherPartnerId) {
         const updatedMs = Date.parse(ev.updatedAt || ev.createdAt) || 0;
