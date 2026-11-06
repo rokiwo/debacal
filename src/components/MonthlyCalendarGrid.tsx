@@ -177,7 +177,17 @@ export const MonthlyCalendarGrid: React.FC<MonthlyCalendarGridProps> = ({
   const eventsByDate = new Map<string, ScheduleEvent[]>();
   for (const ev of Object.values(store.events || {})) {
     if (!ev || ev.deletedAt) continue;
-    if (filterCategory !== 'all' && ev.categoryId !== filterCategory) continue;
+
+    // 🔒 操作者限定プライベート予定：他人の秘密予定は完全に除外！
+    if (ev.privateFor && ev.privateFor !== activePartner) continue;
+
+    // フィルター判定
+    if (filterCategory === 'private') {
+      // 🔒「じぶん限定」フィルター選択時は、自分のプライベート予定のみを表示
+      if (ev.privateFor !== activePartner) continue;
+    } else if (filterCategory !== 'all' && ev.categoryId !== filterCategory) {
+      continue;
+    }
 
     const list = eventsByDate.get(ev.date) || [];
     list.push(ev);
@@ -529,6 +539,11 @@ export const MonthlyCalendarGrid: React.FC<MonthlyCalendarGridProps> = ({
                     <span className="shrink-0">
                       {ev.isTask ? (ev.isCompleted ? '✅' : '⬜') : `${cat.icon}${cat.shortLabel}`}
                     </span>
+                    {ev.privateFor && (
+                      <span className="px-1.5 py-0.2 rounded-md bg-purple-600 text-white text-[9px] font-black shrink-0">
+                        🔒限定
+                      </span>
+                    )}
                     {isNewFromPartner(ev.updatedAt, ev.createdBy) && (
                       <span className="px-1.5 py-0.2 rounded-full bg-rose-500 text-white text-[10px] font-black shrink-0 animate-pulse">
                         🆕 新着
@@ -794,6 +809,11 @@ export const MonthlyCalendarGrid: React.FC<MonthlyCalendarGridProps> = ({
                             <span className="text-[10px] opacity-85 shrink-0">
                               {ev.isTask ? (ev.isCompleted ? '✅' : '⬜') : `${cat.icon}${cat.shortLabel}`}
                             </span>
+                            {ev.privateFor && (
+                              <span className="text-[10px] shrink-0" title="じぶん限定（相手には非表示）">
+                                🔒
+                              </span>
+                            )}
                             {isFromOther && (
                               <span className="text-xs shrink-0" title={`${otherPartner.name}が登録`}>
                                 {otherPartner.avatar}
@@ -974,6 +994,12 @@ export const MonthlyCalendarGrid: React.FC<MonthlyCalendarGridProps> = ({
                             {ev.isTask && (
                               <span className="mr-0.5 text-[9px] shrink-0">
                                 {ev.isCompleted ? '✅' : '⬜'}
+                              </span>
+                            )}
+                            {/* 🔒 じぶん限定予定には鍵アイコンを表示 */}
+                            {ev.privateFor && (
+                              <span className="mr-0.5 text-[8.5px] sm:text-[9.5px] shrink-0" title="じぶん限定（相手には非表示）">
+                                🔒
                               </span>
                             )}
                             {/* 相手が打った予定には相手のアバターアイコンを表示 */}
