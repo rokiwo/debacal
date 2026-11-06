@@ -39,6 +39,7 @@ export interface ParsedVoiceSchedule {
   holidayWorkStartTime?: string;
   holidayWorkEndTime?: string;
   targetPartner?: PartnerId; // 「夫が」「妻が」など対象パートナー
+  isTentative?: boolean;     // 仮・見込みフラグ（「予定」「かも」「仮」）
 }
 
 /**
@@ -401,6 +402,8 @@ export function parseSpokenScheduleText(
     cleanedTitle = `休日出勤 ${holidayWorkMinutes}分`;
   }
 
+  const isTentative = /予定|見込み|かも|なりそう|仮|未定|はず/.test(rawText);
+
   return {
     date: dateStr,
     title: cleanedTitle || (overtimeMinutes ? `残業 +${overtimeMinutes}分` : rawText.trim()),
@@ -418,6 +421,7 @@ export function parseSpokenScheduleText(
     holidayWorkStartTime,
     holidayWorkEndTime,
     targetPartner,
+    isTentative,
   };
 }
 
