@@ -131,10 +131,11 @@ export const StampDrawer: React.FC<StampDrawerProps> = ({
             type="button"
             onClick={() => onToggleOpen(true)}
             className="flex flex-col items-center justify-center py-1.5 px-1 rounded-2xl bg-[#FFE5EC]/70 text-[#9E2A47] active:scale-95 transition-all"
+            title="シフトスタンプおよび残業・休日出勤の入力パネルを開きます"
           >
             <Stamp className="w-5 h-5 text-[#FF8FAB]" />
             <span className="text-[10px] font-extrabold mt-0.5 leading-tight">
-              シフト入力
+              シフト・残業
             </span>
           </button>
 
