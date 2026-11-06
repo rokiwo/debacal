@@ -25,23 +25,23 @@ import {
   formatMinutesToJa,
   getShiftHolidayWorkMinutes,
   getShiftOvertimeMinutes,
-  isShiftExtraTentative,
 } from '../utils/presets';
 
 export interface PartnerOvertimeSummary {
   overtimeMinutes: number;        // 通常残業（分単位：例 35）
   holidayWorkMinutes: number;     // 休日出勤（分単位：例 240）
-  totalExtraMinutes: number;      // 合計時間（分単位：例 275）
+  totalExtraMinutes: number;      // 確定合計時間（分単位：例 275）
+  tentativeExtraMinutes: number;  // 仮・見込み残業合計（分単位：例 120）
   overtimeHours: number;          // 従来の時間小数（後方互換用）
   holidayWorkHours: number;       // 従来の時間小数
   totalExtraHours: number;        // 従来の時間小数
   overtimeFormatted: string;      // 「35分」「1時間30分」
   holidayWorkFormatted: string;   // 「4時間」
   totalExtraFormatted: string;    // 「4時間35分」
+  tentativeExtraFormatted: string;// 「2時間」
   partTimeCount: number;
-  tentativeExtraMinutes?: number; // 仮予定（未確定）の合計分数
-  tentativeCount?: number;        // 未確定の件数
   entries: ShiftEntry[];
+  tentativeEntries: ShiftEntry[]; // 仮予定のシフト一覧
 }
 
 export interface MonthlyOvertimeSummary {
@@ -277,6 +277,11 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
                       <span className="font-black">
                         {activeSum.totalExtraMinutes}分
                       </span>
+                      {activeSum.tentativeExtraMinutes > 0 && (
+                        <span className="text-[10px] font-extrabold text-[#D49600] opacity-90">
+                          (+仮{activeSum.tentativeExtraMinutes}分)
+                        </span>
+                      )}
                     </button>
 
                     {showOvertimePopup && (
@@ -296,14 +301,14 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
                         </div>
 
                         {/* 現在操作中のパートナーのカードのみ表示 */}
-                        <div className="p-2.5 rounded-xl bg-[#FFFBF7] border border-stone-200/80 space-y-1.5">
+                        <div className="p-2.5 rounded-xl bg-[#FFFBF7] border border-stone-200/80 space-y-2">
                           <div className="flex items-center justify-between">
                             <span className="font-extrabold text-stone-800 flex items-center gap-1">
                               <span>{currentPartner.avatar}</span>
                               <span>{currentPartner.name}</span>
                             </span>
                             <span className="px-2 py-0.5 rounded-full bg-[#FFF6D6] text-[#8A5A00] font-black text-xs">
-                              合計 {activeSum.totalExtraMinutes}分
+                              確定 {activeSum.totalExtraMinutes}分
                               {activeSum.totalExtraMinutes >= 60 && ` (${activeSum.totalExtraFormatted})`}
                             </span>
                           </div>
@@ -319,12 +324,32 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
                             <span>🏪 バイト: {activeSum.partTimeCount}回</span>
                           </div>
 
-                          {Boolean(activeSum.tentativeCount && activeSum.tentativeCount > 0) && (
-                            <div className="px-2 py-1 rounded-xl bg-amber-50 border border-amber-200 text-[10px] text-amber-800 font-bold flex items-center justify-between">
-                              <span>📌 未確定の仮予定</span>
-                              <span className="font-black text-rose-600">
-                                {activeSum.tentativeCount}件（{activeSum.tentativeExtraMinutes || 0}分）
-                              </span>
+                          {/* 💡 仮・見込み予定セクション */}
+                          {activeSum.tentativeExtraMinutes > 0 && (
+                            <div className="p-2 rounded-xl bg-[#FFF6D6]/70 border border-[#FFE28A] space-y-1">
+                              <div className="flex items-center justify-between font-extrabold text-[#8A5A00] text-[11px]">
+                                <span className="flex items-center gap-1">
+                                  <span>💡 仮・見込み残業:</span>
+                                </span>
+                                <span className="font-black text-rose-600">
+                                  +{activeSum.tentativeExtraMinutes}分 ({activeSum.tentativeExtraFormatted})
+                                </span>
+                              </div>
+                              <div className="flex flex-wrap gap-1">
+                                {activeSum.tentativeEntries.map((ten) => (
+                                  <button
+                                    key={ten.id}
+                                    type="button"
+                                    onClick={() => {
+                                      onSelectDate(ten.date);
+                                      setShowOvertimePopup(false);
+                                    }}
+                                    className="px-1.5 py-0.5 rounded bg-white border border-[#FFD0BF] text-[10px] font-bold text-[#9C3D1C] hover:border-rose-400"
+                                  >
+                                    {Number(ten.date.split('-')[2])}日(仮{ten.isTentativeHolidayWork ? '休出' : '残業'}{ten.holidayWorkMinutes || ten.overtimeMinutes}分)
+                                  </button>
+                                ))}
+                              </div>
                             </div>
                           )}
 
@@ -338,7 +363,6 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
                                   otMin = 0; // 重複時は休出優先
                                 }
 
-                                const isTentative = isShiftExtraTentative(en);
                                 const labelParts: string[] = [];
                                 if (hwMin > 0) labelParts.push(`休出${hwMin}分`);
                                 if (otMin > 0) labelParts.push(`+${otMin}分`);
@@ -354,13 +378,9 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
                                       onSelectDate(en.date);
                                       setShowOvertimePopup(false);
                                     }}
-                                    className={`px-1.5 py-0.5 rounded-lg border text-[10px] font-bold transition-all ${
-                                      isTentative
-                                        ? 'bg-amber-100/90 border-amber-300 text-amber-900 shadow-2xs hover:bg-amber-200'
-                                        : 'bg-white border-stone-200 text-stone-700 hover:border-[#FF8FAB]'
-                                    }`}
+                                    className="px-1.5 py-0.5 rounded-lg bg-white border border-stone-200 text-[10px] font-bold text-stone-700 hover:border-[#FF8FAB]"
                                   >
-                                    {isTentative && '📌仮 '}{dayN}日({labelParts.join(' / ') || '予定'})
+                                    {dayN}日({labelParts.join(' / ') || '予定'})
                                   </button>
                                 );
                               })}
