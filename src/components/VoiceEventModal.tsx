@@ -11,7 +11,6 @@ import {
   User,
   RotateCcw,
   Undo2,
-  Share2,
   MessageCircle,
   Copy,
   ChevronDown,
@@ -102,7 +101,7 @@ export const VoiceEventModal: React.FC<VoiceEventModalProps> = ({
   const [isListening, setIsListening] = useState(false);
   const [speechError, setSpeechError] = useState<string | null>(null);
 
-  // 📝 発話フレーズの累積管理（間が空いても消えない！）
+  // 📝 発話フレーズの累積管理（間が空いても消えない配列管理）
   const [confirmedPhrases, setConfirmedPhrases] = useState<string[]>([]);
   const [interimText, setInterimText] = useState<string>('');
 
@@ -134,11 +133,9 @@ export const VoiceEventModal: React.FC<VoiceEventModalProps> = ({
   const [showDetailFields, setShowDetailFields] = useState(false);
   const [copiedLineMsg, setCopiedLineMsg] = useState(false);
 
-  // Refs（iOS Safariのマイク権限保持＆ライフサイクル）
-  const mediaStreamRef = useRef<MediaStream | null>(null); // マイク権限保持用ストリーム
+  // Refs（SpeechRecognitionの安全なライフサイクル制御）
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
-  const isRecordingActiveRef = useRef<boolean>(false); // ユーザーが「話し終わった」を押すまでtrue
-  const restartTimerRef = useRef<number | null>(null);
+  const isRecordingActiveRef = useRef<boolean>(false);
   const confirmedPhrasesRef = useRef<string[]>([]);
   confirmedPhrasesRef.current = confirmedPhrases;
 
@@ -211,76 +208,30 @@ export const VoiceEventModal: React.FC<VoiceEventModalProps> = ({
     }
   };
 
-  // マイクハードウェアとセッションの完全停止・解放
+  // マイク認識の完全停止
   const stopListening = () => {
     isRecordingActiveRef.current = false;
-    if (restartTimerRef.current) {
-      window.clearTimeout(restartTimerRef.current);
-      restartTimerRef.current = null;
-    }
-
-    // 1. Web Speech API を停止
     if (recognitionRef.current) {
       try {
         recognitionRef.current.onresult = null;
         recognitionRef.current.onerror = null;
         recognitionRef.current.onend = null;
-        if (typeof recognitionRef.current.abort === 'function') {
-          recognitionRef.current.abort();
-        } else {
-          recognitionRef.current.stop();
-        }
+        recognitionRef.current.stop();
       } catch {
         // ignore
       }
       recognitionRef.current = null;
     }
-
-    // 2. iOS Safari のマイクストリーム（MediaStream）を解放してオレンジのインジケータを消す
-    if (mediaStreamRef.current) {
-      try {
-        mediaStreamRef.current.getTracks().forEach((track) => track.stop());
-      } catch {
-        // ignore
-      }
-      mediaStreamRef.current = null;
-    }
-
     setIsListening(false);
     setInterimText('');
   };
 
-  // 🎙️ 音声認識の起動（iOS Safariで毎回マイク許可を求められても、1回のタップでずっと使えるKeep-Alive設計）
-  const startListening = async () => {
+  // 🎙️ 音声認識の起動（iOS Safariで確実に反応するクリーンなWeb Speech API起動）
+  // ※ getUserMedia を同時に呼ぶとiOSでマイク排他ロック競合が起き無音になるため、純粋にSpeechRecognitionのみを起動！
+  const startListening = () => {
     setSpeechError(null);
     isRecordingActiveRef.current = true;
 
-    // 💡 1. ユーザーのタップ操作イベント内で getUserMedia を呼び出し、iOSのマイク権限をアクティブ保持！
-    // ユーザーがダイアログで「許可」を押すのを await で完全に待ち受けてから音声エンジンを起動するため、
-    // アプリを立ち上げ直した初回でもタイムアウト死せず、許可ダイアログが出ても確実に録音が開始されます。
-    try {
-      if (
-        !mediaStreamRef.current ||
-        !mediaStreamRef.current.getTracks().some((t) => t.readyState === 'live')
-      ) {
-        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-          mediaStreamRef.current = stream;
-        }
-      }
-    } catch (err: any) {
-      console.warn('getUserMedia note:', err);
-      if (err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError') {
-        setSpeechError(
-          'マイクの使用が拒否されました。iPhoneの「設定 > Safari > マイク」を「許可」にするか、キーボードの🎤からお話しください🐾'
-        );
-        isRecordingActiveRef.current = false;
-        setIsListening(false);
-        return;
-      }
-    }
-
-    // 💡 2. Web Speech API を起動
     const w = window as unknown as {
       SpeechRecognition?: new () => SpeechRecognitionInstance;
       webkitSpeechRecognition?: new () => SpeechRecognitionInstance;
@@ -295,114 +246,87 @@ export const VoiceEventModal: React.FC<VoiceEventModalProps> = ({
       return;
     }
 
-    const launchSpeechSession = () => {
-      if (!isRecordingActiveRef.current) return;
-
-      try {
-        if (recognitionRef.current) {
-          try {
-            recognitionRef.current.onresult = null;
-            recognitionRef.current.onerror = null;
-            recognitionRef.current.onend = null;
-            recognitionRef.current.stop();
-          } catch {
-            // ignore
-          }
-        }
-
-        const rec = new SpeechRec();
-        rec.lang = 'ja-JP';
-        rec.interimResults = true;
-        rec.continuous = true;
-
-        rec.onresult = (event: SpeechRecognitionEvent) => {
-          let currentSessionFinal = '';
-          let currentSessionInterim = '';
-
-          for (let i = 0; i < event.results.length; i++) {
-            const res = event.results[i];
-            const transcript = res[0]?.transcript || '';
-            if (res.isFinal) {
-              currentSessionFinal += transcript + ' ';
-            } else {
-              currentSessionInterim += transcript;
-            }
-          }
-
-          const trimmedFinal = currentSessionFinal.trim();
-          if (trimmedFinal) {
-            setConfirmedPhrases((prev) => {
-              // 重複コミット防止
-              if (prev.length > 0 && prev[prev.length - 1] === trimmedFinal) {
-                return prev;
-              }
-              const next = [...prev, trimmedFinal];
-              updateAiAndForm(next, currentSessionInterim);
-              return next;
-            });
-          }
-
-          setInterimText(currentSessionInterim);
-          updateAiAndForm(confirmedPhrasesRef.current, currentSessionInterim);
-        };
-
-        rec.onerror = (e) => {
-          // 'no-speech'（沈黙・考える時間）はエラーではなく正常な間！
-          if (e.error === 'no-speech') {
-            return;
-          }
-          if (e.error === 'not-allowed') {
-            setSpeechError(
-              'マイクの使用が拒否されました。iPhoneの「設定 > Safari > マイク」を許可してください。'
-            );
-            stopListening();
-            return;
-          }
-
-          // ユーザーが自発的に停止していないなら、マイクストリームが生きてるので即再起動
-          if (isRecordingActiveRef.current) {
-            restartTimerRef.current = window.setTimeout(() => {
-              if (isRecordingActiveRef.current) {
-                launchSpeechSession();
-              }
-            }, 200);
-          }
-        };
-
-        rec.onend = () => {
-          // ユーザーが「話し終わった」を押すまでは、沈黙やブラウザの区切りで切れても即座に再接続！
-          // （getUserMedia が開いているため、iOSで再許可プロンプトは出ません）
-          if (isRecordingActiveRef.current) {
-            restartTimerRef.current = window.setTimeout(() => {
-              if (isRecordingActiveRef.current) {
-                try {
-                  launchSpeechSession();
-                } catch {
-                  // ignore
-                }
-              }
-            }, 100);
-          } else {
-            setIsListening(false);
-          }
-        };
-
-        recognitionRef.current = rec;
-        rec.start();
-        setIsListening(true);
-      } catch (err) {
-        console.warn('SpeechRecognition start failed, retrying in 300ms:', err);
-        if (isRecordingActiveRef.current) {
-          restartTimerRef.current = window.setTimeout(() => {
-            if (isRecordingActiveRef.current) {
-              launchSpeechSession();
-            }
-          }, 300);
+    try {
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop();
+        } catch {
+          // ignore
         }
       }
-    };
 
-    launchSpeechSession();
+      const rec = new SpeechRec();
+      rec.lang = 'ja-JP';
+      rec.interimResults = true;
+      // continuous はブラウザによって途中で切れることがあるため、自然に扱い、確定フレーズを累積保存する
+      rec.continuous = true;
+
+      rec.onresult = (event: SpeechRecognitionEvent) => {
+        let newFinalChunk = '';
+        let currentInterim = '';
+
+        // Web Speech API 標準の resultIndex から差分のみを正しく抽出！
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          const res = event.results[i];
+          const transcript = res[0]?.transcript || '';
+          if (res.isFinal) {
+            newFinalChunk += transcript + ' ';
+          } else {
+            currentInterim += transcript;
+          }
+        }
+
+        const trimmedFinal = newFinalChunk.trim();
+        if (trimmedFinal) {
+          setConfirmedPhrases((prev) => {
+            // 直前と完全に同じフレーズの二重コミット防止
+            if (prev.length > 0 && prev[prev.length - 1] === trimmedFinal) {
+              return prev;
+            }
+            const next = [...prev, trimmedFinal];
+            updateAiAndForm(next, currentInterim);
+            return next;
+          });
+        } else {
+          updateAiAndForm(confirmedPhrasesRef.current, currentInterim);
+        }
+
+        setInterimText(currentInterim);
+      };
+
+      rec.onerror = (e: { error: string }) => {
+        console.warn('SpeechRecognition error:', e.error);
+        if (e.error === 'no-speech') {
+          // 考える時間（沈黙）は正常な間なのでエラーにしない
+          return;
+        }
+        if (e.error === 'not-allowed') {
+          setSpeechError(
+            'マイクの使用が拒否されました。iPhoneの「設定 > Safari > マイク」で「許可」にしてください🐾'
+          );
+          setIsListening(false);
+          isRecordingActiveRef.current = false;
+          return;
+        }
+        // その他のエラー時は安全に停止
+        setIsListening(false);
+        isRecordingActiveRef.current = false;
+      };
+
+      rec.onend = () => {
+        setIsListening(false);
+        isRecordingActiveRef.current = false;
+      };
+
+      recognitionRef.current = rec;
+      rec.start();
+      setIsListening(true);
+    } catch (err) {
+      console.error('SpeechRecognition start failed:', err);
+      setIsListening(false);
+      isRecordingActiveRef.current = false;
+      setSpeechError('マイクの起動に失敗しました。もう一度マイクボタンを押してください🐾');
+    }
   };
 
   // トグル
@@ -426,6 +350,7 @@ export const VoiceEventModal: React.FC<VoiceEventModalProps> = ({
 
   // 🔄 最初からやり直す（リセット）
   const handleRestart = () => {
+    stopListening();
     setConfirmedPhrases([]);
     setInterimText('');
     setTitle('');
@@ -596,7 +521,7 @@ export const VoiceEventModal: React.FC<VoiceEventModalProps> = ({
             <div className="relative flex flex-col items-center justify-center gap-2 py-1">
               {/* マイクボタン本体 ＆ 🎙️ 多重音声波紋アニメーション */}
               <div className="relative flex items-center justify-center">
-                {/* 録音中の三重ピンク波紋エフェクト */}
+                {/* 録音中の多重ピンク波紋エフェクト */}
                 {isListening && (
                   <>
                     <span className="absolute w-32 h-32 rounded-full bg-rose-300 animate-ping opacity-25 pointer-events-none [animation-duration:2.2s]" />
@@ -635,7 +560,7 @@ export const VoiceEventModal: React.FC<VoiceEventModalProps> = ({
                   {isListening ? (
                     <span className="text-rose-600 flex items-center justify-center gap-1.5 animate-pulse">
                       <span className="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block" />
-                      聞き取り中…（自動で切れません。ゆっくり話してね）
+                      聞き取り中…（話し終わったら下のボタンを押してね）
                     </span>
                   ) : hasAnyText ? (
                     '✅ 音声を停止しました。内容を確認してください'
@@ -653,7 +578,7 @@ export const VoiceEventModal: React.FC<VoiceEventModalProps> = ({
                       className="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 active:scale-95 text-white font-black text-sm shadow-md flex items-center justify-center gap-2 animate-bounce"
                     >
                       <span>⏹️</span>
-                      <span>話し終わった（マイクを止めて確定）</span>
+                      <span>話し終わった（確定する）</span>
                     </button>
 
                     {/* 録音中（話している最中）でも言い直せるUndoボタン！ */}
