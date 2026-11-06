@@ -255,7 +255,7 @@ export const WidgetCompactView: React.FC<WidgetCompactViewProps> = ({
           const isBothHoliday = matchedHolidays.includes(day.dateStr);
 
           const events = Object.values(store.events)
-            .filter((e) => !e.deletedAt && e.date === day.dateStr)
+            .filter((e) => !e.deletedAt && e.date === day.dateStr && (!e.privateFor || e.privateFor === activePartner))
             .sort((a, b) => {
               if (a.isAllDay !== b.isAllDay) return a.isAllDay ? -1 : 1;
               return (a.startTime || '00:00').localeCompare(b.startTime || '00:00');
@@ -640,7 +640,7 @@ export const WidgetGuideModal: React.FC<WidgetGuideModalProps> = ({
       const stA = sA && !sA.deletedAt ? stampMap.get(sA.stampId) : undefined;
       const stB = sB && !sB.deletedAt ? stampMap.get(sB.stampId) : undefined;
       const evs = Object.values(store.events)
-        .filter((e) => !e.deletedAt && e.date === d.dateStr)
+        .filter((e) => !e.deletedAt && e.date === d.dateStr && !e.privateFor)
         .map((e) => e.title)
         .join(' / ');
       return {
