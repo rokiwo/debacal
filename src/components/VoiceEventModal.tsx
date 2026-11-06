@@ -113,7 +113,7 @@ export const VoiceEventModal: React.FC<VoiceEventModalProps> = ({
   // フォーム編集フィールド（AI解析結果で自動反映され、手動微調整も可能）
   const [dateStr, setDateStr] = useState(selectedDate);
   const [title, setTitle] = useState('');
-  const [categoryId, setCategoryId] = useState<CalendarCategoryId>('shared');
+  const [categoryId, setCategoryId] = useState<CalendarCategoryId>(activePartner);
   const [isAllDay, setIsAllDay] = useState(true);
   const [startTime, setStartTime] = useState('10:00');
   const [endTime, setEndTime] = useState('11:00');
